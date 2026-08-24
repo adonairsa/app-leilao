@@ -2,6 +2,10 @@ import streamlit as st
 import pdfplumber
 import re
 from io import BytesIO
+import requests
+import json
+import time
+from datetime import datetime, timedelta
 
 st.set_page_config(
     page_title="PAINEL DO LEILOEIRO PRO",
@@ -9,6 +13,94 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# ==================== CONFIGURAÇÃO DA API DE IA ====================
+# Você pode usar OpenAI, Google Gemini, ou qualquer outra API
+API_KEY = st.secrets.get("OPENAI_API_KEY", "")  # Coloque sua API key no secrets.toml
+API_URL = "https://api.openai.com/v1/chat/completions"  # Ou outra API
+
+# ==================== SISTEMA DE CACHE ====================
+@st.cache_data(ttl=3600)  # Cache por 1 hora
+def buscar_premios_ia(nome_animal, pais, raca):
+    """
+    Busca prêmios e conquistas da linhagem usando IA
+    Usa cache para não repetir buscas
+    """
+    if not API_KEY:
+        return []
+    
+    try:
+        # Monta o prompt para a IA
+        prompt = f"""
+        Busque informações sobre prêmios e conquistas na pecuária para:
+        
+        Animal: {nome_animal}
+        Pais: {pais}
+        Raça: {raca}
+        
+        Retorne uma lista de prêmios relevantes da linhagem, como:
+        - Campeonatos
+        - Exposições
+        - Prêmios de genética
+        - Recordes
+        
+        Formato: Lista simples com bullets
+        """
+        
+        # Chama a API
+        headers = {
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "Você é um especialista em pecuária e leilões."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 300
+        }
+        
+        response = requests.post(API_URL, headers=headers, json=data, timeout=10)
+        
+        if response.status_code == 200:
+            resultado = response.json()
+            texto_resposta = resultado["choices"][0]["message"]["content"]
+            
+            # Converte para lista
+            premios = [linha.strip() for linha in texto_resposta.split('\n') if linha.strip()]
+            return premios
+        else:
+            return []
+            
+    except Exception as e:
+        st.warning(f"Erro ao buscar prêmios: {str(e)}")
+        return []
+
+# ==================== CACHE LOCAL EM SESSION STATE ====================
+if 'cache_premios' not in st.session_state:
+    st.session_state.cache_premios = {}
+
+def buscar_premios_com_cache(nome_animal, pais, raca):
+    """
+    Busca prêmios com cache em session_state
+    """
+    # Cria chave única para o cache
+    chave_cache = f"{nome_animal}_{pais}_{raca}"
+    
+    # Verifica se já está em cache
+    if chave_cache in st.session_state.cache_premios:
+        return st.session_state.cache_premios[chave_cache]
+    
+    # Busca da API
+    premios = buscar_premios_ia(nome_animal, pais, raca)
+    
+    # Salva no cache
+    st.session_state.cache_premios[chave_cache] = premios
+    
+    return premios
 
 # ==================== CSS PARA TABLET ====================
 st.markdown("""
@@ -41,13 +133,75 @@ st.markdown("""
         border-radius: 15px;
         margin: 10px 0;
     }
-    .pedigree-box {
-        background: rgba(255,255,255,0.08);
-        border: 2px solid #FF9800;
+    .prenhez-box {
+        background: linear-gradient(135deg, #FF6B6B 0%, #FF4757 100%);
+        color: white;
+        padding: 20px;
         border-radius: 15px;
+        margin: 15px 0;
+        font-size: 28px;
+        font-weight: bold;
+        text-align: center;
+        border: 3px solid #FF0000;
+        box-shadow: 0 0 20px rgba(255,0,0,0.5);
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+    .genealogia-box {
+        background: rgba(255,255,255,0.05);
+        border: 2px solid #4CAF50;
+        border-radius: 15px;
+        padding: 20px;
+        margin: 15px 0;
+    }
+    .pai-box {
+        background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+        color: white;
         padding: 15px;
-        margin: 10px 0;
-        font-size: 18px;
+        border-radius: 10px;
+        margin: 5px 0;
+    }
+    .mae-box {
+        background: linear-gradient(135deg, #E91E63 0%, #C2185B 100%);
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        margin: 5px 0;
+    }
+    .avo-paterno-box {
+        background: linear-gradient(135deg, #64B5F6 0%, #42A5F5 100%);
+        color: white;
+        padding: 12px;
+        border-radius: 8px;
+        margin: 5px 0;
+        font-size: 16px;
+    }
+    .avo-materno-box {
+        background: linear-gradient(135deg, #F48FB1 0%, #EC407A 100%);
+        color: white;
+        padding: 12px;
+        border-radius: 8px;
+        margin: 5px 0;
+        font-size: 16px;
+    }
+    .premios-box {
+        background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+        color: #333;
+        padding: 20px;
+        border-radius: 15px;
+        margin: 15px 0;
+        border: 2px solid #FFD700;
+    }
+    .premio-item {
+        background: rgba(255,255,255,0.9);
+        padding: 10px;
+        border-radius: 8px;
+        margin: 5px 0;
+        color: #333;
     }
     .gatilho-card {
         background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
@@ -121,16 +275,15 @@ def extrair_dados_oe(texto_oe_tuple):
     if not texto_oe:
         return sequencia, dados_por_lote
     
-    for pagina_idx, pagina in enumerate(texto_oe):
+    for pagina in texto_oe:
         linhas = pagina.split('\n')
         
-        for linha_idx, linha in enumerate(linhas):
+        for linha in linhas:
             linha_limpa = linha.strip()
             
             if not linha_limpa:
                 continue
             
-            # Ignora linhas de cabeçalho
             if re.search(r"QTD\s+IDADE\s+PESO\s+CATEGORIA\s+PRODUTO", linha_limpa, re.IGNORECASE):
                 continue
             
@@ -140,7 +293,6 @@ def extrair_dados_oe(texto_oe_tuple):
             if re.search(r"\d{2}/\d{2}/\d{4}", linha_limpa):
                 continue
             
-            # PADRÃO PRINCIPAL: Começa com posição (1º, 2º, etc.)
             m_posicao = re.match(r"^(\d{1,3})\s*[º°]?\s+(\d{1,3})\s+", linha_limpa)
             
             if m_posicao:
@@ -166,10 +318,11 @@ def extrair_dados_oe(texto_oe_tuple):
                         "produto": "",
                         "vendedor": "",
                         "raca": "",
+                        "prenhez": "",
+                        "nome_animal": "",
                         "linha_completa": linha_limpa
                     }
                     
-                    # Extrai campos na ordem
                     if len(parts) >= 1:
                         dados["qtd"] = parts[0]
                     if len(parts) >= 2:
@@ -179,7 +332,12 @@ def extrair_dados_oe(texto_oe_tuple):
                     if len(parts) >= 4:
                         dados["categoria"] = parts[3]
                     
-                    # Produto: junta as partes do meio
+                    # Detecta prenhez
+                    linha_lower = linha_limpa.lower()
+                    if any(k in linha_lower for k in ["prenhe", "prenha", "prenhez", "gestante"]):
+                        dados["prenhez"] = "PRENHE"
+                    
+                    # Produto e nome do animal
                     if len(parts) >= 5:
                         produto_parts = []
                         vendedor_encontrado = False
@@ -201,6 +359,12 @@ def extrair_dados_oe(texto_oe_tuple):
                                 produto_parts.append(part)
                         
                         dados["produto"] = " ".join(produto_parts)
+                        
+                        # Tenta extrair nome do animal (geralmente em maiúsculas)
+                        for part in parts:
+                            if re.match(r"^[A-ZÀ-Ú]{3,}$", part):
+                                dados["nome_animal"] = part
+                                break
                     
                     # Análise adicional
                     for part in parts:
@@ -222,50 +386,75 @@ def extrair_dados_oe(texto_oe_tuple):
     
     return sequencia, dados_por_lote
 
-# ==================== EXTRAÇÃO DO CATÁLOGO ====================
-@st.cache_data
-def extrair_catalogo(texto_cat_tuple):
-    texto_cat = list(texto_cat_tuple)
-    catalogo_info = {}
+# ==================== EXTRAÇÃO DA GENEALOGIA ====================
+def extrair_genealogia(texto_cat, num_lote):
+    genealogia = {
+        "pai": "",
+        "mae": "",
+        "avo_paterno": "",
+        "avo_paterna": "",
+        "avo_materno": "",
+        "avo_materna": "",
+        "prenhez": ""
+    }
     
     if not texto_cat:
-        return catalogo_info
+        return genealogia
     
-    for pagina_idx, pagina in enumerate(texto_cat):
+    for pagina in texto_cat:
         linhas = pagina.split('\n')
         
-        for linha_idx, linha in enumerate(linhas):
+        for i, linha in enumerate(linhas):
             linha_limpa = linha.strip()
             
-            if not linha_limpa:
-                continue
-            
-            m_lote = re.search(r"\b(\d{1,3})\b", linha_limpa)
-            
-            if m_lote and 1 <= int(m_lote.group(1)) <= 500:
-                num_lote = f"{int(m_lote.group(1)):02d}"
+            if re.search(rf"\b{int(num_lote)}\b", linha_limpa):
+                inicio = max(0, i - 10)
+                fim = min(len(linhas), i + 30)
+                bloco = linhas[inicio:fim]
                 
-                inicio = max(0, linha_idx - 5)
-                fim = min(len(linhas), linha_idx + 20)
-                bloco = [l.strip() for l in linhas[inicio:fim] if l.strip()]
+                nomes_maiusculos = []
+                for texto in bloco:
+                    texto_limpo = texto.strip()
+                    if re.match(r"^[A-ZÀ-Ú\s]{4,}$", texto_limpo):
+                        nomes_maiusculos.append(texto_limpo)
                 
-                if bloco:
-                    nomes = []
-                    for texto in bloco:
-                        if re.match(r"^[A-ZÀ-Ú\s]+$", texto) and len(texto) > 3:
-                            nomes.append(texto)
+                for idx, linha_bloco in enumerate(bloco):
+                    linha_lower = linha_bloco.lower()
                     
-                    catalogo_info[num_lote] = {
-                        "bloco_completo": bloco,
-                        "nomes_destaque": nomes,
-                        "pagina": pagina_idx + 1,
-                        "linha": linha_idx + 1
-                    }
+                    if any(k in linha_lower for k in ["pai:", "father", "sire", "genitor"]):
+                        for j in range(idx, min(idx + 3, len(bloco))):
+                            if re.match(r"^[A-ZÀ-Ú\s]{4,}$", bloco[j].strip()):
+                                genealogia["pai"] = bloco[j].strip()
+                                break
+                    
+                    if any(k in linha_lower for k in ["mãe:", "mae:", "mother", "dam", "genitora"]):
+                        for j in range(idx, min(idx + 3, len(bloco))):
+                            if re.match(r"^[A-ZÀ-Ú\s]{4,}$", bloco[j].strip()):
+                                genealogia["mae"] = bloco[j].strip()
+                                break
+                
+                if not genealogia["pai"] and len(nomes_maiusculos) >= 2:
+                    genealogia["pai"] = nomes_maiusculos[0]
+                    genealogia["mae"] = nomes_maiusculos[1]
+                
+                if len(nomes_maiusculos) >= 4:
+                    genealogia["avo_paterno"] = nomes_maiusculos[2]
+                    genealogia["avo_paterna"] = nomes_maiusculos[3]
+                
+                if len(nomes_maiusculos) >= 6:
+                    genealogia["avo_materno"] = nomes_maiusculos[4]
+                    genealogia["avo_materna"] = nomes_maiusculos[5]
+                
+                texto_completo = " ".join(bloco).lower()
+                if any(k in texto_completo for k in ["prenhe", "prenha", "gestante"]):
+                    genealogia["prenhez"] = "PRENHE"
+                
+                break
     
-    return catalogo_info
+    return genealogia
 
 # ==================== GATILHOS ====================
-def gerar_gatilhos(dados_lote, info_catalogo=None):
+def gerar_gatilhos(dados_lote, genealogia=None, premios=None):
     gatilhos = []
     
     if not dados_lote:
@@ -278,6 +467,10 @@ def gerar_gatilhos(dados_lote, info_catalogo=None):
     categoria = dados_lote.get("categoria", "").lower()
     produto = dados_lote.get("produto", "").lower()
     raca = dados_lote.get("raca", "").lower()
+    
+    # Gatilhos para prenhez
+    if dados_lote.get("prenhez") or (genealogia and genealogia.get("prenhez")):
+        gatilhos.append("PRENHEZ CONFIRMADA: Garantia de produção futura!")
     
     if "touro" in categoria or "touro" in produto:
         gatilhos.extend([
@@ -309,10 +502,16 @@ def gerar_gatilhos(dados_lote, info_catalogo=None):
     if "angus" in raca:
         gatilhos.append("ANGUS: Carne premium, maciez garantida!")
     
-    if info_catalogo and info_catalogo.get("nomes_destaque"):
-        nomes = info_catalogo["nomes_destaque"]
-        if len(nomes) >= 2:
-            gatilhos.append(f"PEDIGREE: {nomes[0]} x {nomes[1]} - Cruzamento de elite!")
+    # Gatilhos baseados na genealogia
+    if genealogia:
+        if genealogia.get("pai") and genealogia.get("mae"):
+            gatilhos.append(f"PEDIGREE: {genealogia['pai']} x {genealogia['mae']} - Cruzamento de elite!")
+        elif genealogia.get("pai"):
+            gatilhos.append(f"FILHO DE: {genealogia['pai']} - Linhagem consagrada!")
+    
+    # Gatilhos baseados em prêmios
+    if premios:
+        gatilhos.append("PREMIADO: Linhagem com histórico de campeonatos!")
     
     gatilhos.extend([
         "QUALIDADE: Animal selecionado a dedo!",
@@ -326,7 +525,7 @@ def gerar_gatilhos(dados_lote, info_catalogo=None):
     if dados_lote.get("idade"):
         gatilhos.append(f"IDADE: {dados_lote['idade']} - Fase perfeita!")
     
-    return gatilhos[:6]
+    return gatilhos[:7]
 
 # ==================== INTERFACE PRINCIPAL ====================
 st.title("PAINEL DO LEILOEIRO PRO")
@@ -335,11 +534,7 @@ st.title("PAINEL DO LEILOEIRO PRO")
 with st.sidebar:
     st.header("Arquivos")
     
-    file_oe = st.file_uploader(
-        "Ordem de Entrada (PDF)",
-        type="pdf",
-        key="oe"
-    )
+    file_oe = st.file_uploader("Ordem de Entrada (PDF)", type="pdf", key="oe")
     
     if file_oe:
         tamanho_mb = len(file_oe.getvalue()) / (1024 * 1024)
@@ -348,11 +543,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("**Catálogo (opcional):**")
     
-    file_cat = st.file_uploader(
-        "Catálogo do Leilão (PDF)",
-        type="pdf",
-        key="cat"
-    )
+    file_cat = st.file_uploader("Catálogo do Leilão (PDF)", type="pdf", key="cat")
     
     if file_cat:
         tamanho_mb = len(file_cat.getvalue()) / (1024 * 1024)
@@ -366,6 +557,18 @@ with st.sidebar:
         ["ORDEM DE ENTRADA", "ORDEM NUMÉRICA"],
         index=0
     )
+    
+    # Configuração da API
+    st.markdown("---")
+    st.header("Configurações de IA")
+    
+    usar_ia = st.checkbox("Buscar prêmios com IA", value=False)
+    
+    if usar_ia and not API_KEY:
+        st.warning("Configure a API key no secrets.toml")
+        api_key_manual = st.text_input("Ou digite a API key:", type="password")
+        if api_key_manual:
+            API_KEY = api_key_manual
     
     st.markdown("---")
     if st.button("VER DEBUG", use_container_width=True):
@@ -387,14 +590,11 @@ if file_cat:
     with st.spinner("Lendo Catálogo..."):
         file_bytes = file_cat.getvalue()
         texto_cat = processar_pdf(file_bytes)
-        texto_cat_tuple = tuple(texto_cat) if texto_cat else tuple()
 else:
     texto_cat = []
-    texto_cat_tuple = tuple()
 
 # Extrair dados
 sequencia_oe, mapa_oe = extrair_dados_oe(texto_oe_tuple)
-catalogo_info = extrair_catalogo(texto_cat_tuple)
 
 # Debug
 if hasattr(st.session_state, 'mostrar_debug') and st.session_state.mostrar_debug:
@@ -430,13 +630,10 @@ else:
 if 'lote_idx' not in st.session_state:
     st.session_state.lote_idx = 0
 
-# Verificar se há lotes
 if not lista_lotes:
     st.warning("Carregue a Ordem de Entrada (PDF) para começar!")
-    st.info("Clique em VER DEBUG na sidebar para verificar o formato do PDF")
     st.stop()
 
-# Garantir índice válido
 if st.session_state.lote_idx >= len(lista_lotes):
     st.session_state.lote_idx = 0
 
@@ -465,10 +662,27 @@ st.session_state.lote_idx = lista_lotes.index(lote_selecionado)
 
 num_lote = lista_lotes[st.session_state.lote_idx]
 dados_lote = mapa_oe.get(num_lote, {})
-info_cat_lote = catalogo_info.get(num_lote, {})
+
+# Extrai genealogia
+genealogia = extrair_genealogia(texto_cat, num_lote) if texto_cat else {}
+
+# Busca prêmios com IA (se habilitado)
+premios = []
+if usar_ia and dados_lote:
+    nome_animal = dados_lote.get("nome_animal", "")
+    pais = f"{genealogia.get('pai', '')} {genealogia.get('mae', '')}"
+    raca = dados_lote.get("raca", "")
+    
+    if nome_animal or pais.strip():
+        with st.spinner("Buscando prêmios da linhagem..."):
+            premios = buscar_premios_com_cache(nome_animal, pais, raca)
 
 # ==================== PAINEL PRINCIPAL ====================
 st.markdown(f'<div class="lote-destaque">LOTE {num_lote}<br><span style="font-size: 24px;">{dados_lote.get("posicao", f"{st.session_state.lote_idx + 1}º")} A ENTRAR</span></div>', unsafe_allow_html=True)
+
+# Destaque para prenhez
+if dados_lote.get("prenhez") or genealogia.get("prenhez"):
+    st.markdown(f'<div class="prenhez-box">🐄 PRENHEZ CONFIRMADA! 🐄</div>', unsafe_allow_html=True)
 
 if dados_lote:
     col1, col2, col3 = st.columns(3)
@@ -488,32 +702,57 @@ if dados_lote:
     if dados_lote.get("produto"):
         st.markdown("### PRODUTO/ANIMAL")
         st.markdown(f'<div class="animal-info">{dados_lote["produto"]}</div>', unsafe_allow_html=True)
+
+# Genealogia
+if genealogia:
+    st.markdown("### 📋 GENEALOGIA COMPLETA")
     
-    if info_cat_lote:
-        st.markdown("### PEDIGREE DO CATÁLOGO")
-        
-        if info_cat_lote.get("nomes_destaque"):
-            st.markdown("**LINHAGEM:**")
-            for nome in info_cat_lote["nomes_destaque"][:6]:
-                st.markdown(f'<div class="pedigree-box">{nome}</div>', unsafe_allow_html=True)
-        
-        if info_cat_lote.get("bloco_completo"):
-            with st.expander("Ver pedigree completo"):
-                for texto in info_cat_lote["bloco_completo"]:
-                    st.write(f"• {texto}")
+    col_pai, col_mae = st.columns(2)
     
+    with col_pai:
+        if genealogia.get("pai"):
+            st.markdown(f'<div class="pai-box"><strong>PAI:</strong><br>{genealogia["pai"]}</div>', unsafe_allow_html=True)
+        
+        col_avo_p, col_avo_p2 = st.columns(2)
+        with col_avo_p:
+            if genealogia.get("avo_paterno"):
+                st.markdown(f'<div class="avo-paterno-box"><strong>AVÔ PATERNO:</strong><br>{genealogia["avo_paterno"]}</div>', unsafe_allow_html=True)
+        with col_avo_p2:
+            if genealogia.get("avo_paterna"):
+                st.markdown(f'<div class="avo-paterno-box"><strong>AVÓ PATERNA:</strong><br>{genealogia["avo_paterna"]}</div>', unsafe_allow_html=True)
+    
+    with col_mae:
+        if genealogia.get("mae"):
+            st.markdown(f'<div class="mae-box"><strong>MÃE:</strong><br>{genealogia["mae"]}</div>', unsafe_allow_html=True)
+        
+        col_avo_m, col_avo_m2 = st.columns(2)
+        with col_avo_m:
+            if genealogia.get("avo_materno"):
+                st.markdown(f'<div class="avo-materno-box"><strong>AVÔ MATERNO:</strong><br>{genealogia["avo_materno"]}</div>', unsafe_allow_html=True)
+        with col_avo_m2:
+            if genealogia.get("avo_materna"):
+                st.markdown(f'<div class="avo-materno-box"><strong>AVÓ MATERNA:</strong><br>{genealogia["avo_materna"]}</div>', unsafe_allow_html=True)
+
+# Prêmios da IA
+if premios:
+    st.markdown("### 🏆 PRÊMIOS DA LINHAGEM")
+    st.markdown('<div class="premios-box">', unsafe_allow_html=True)
+    for premio in premios:
+        if premio.strip():
+            st.markdown(f'<div class="premio-item">{premio}</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Linha completa
+if dados_lote:
     with st.expander("Ver linha completa da O.E."):
         st.code(dados_lote.get("linha_completa", "-"))
-    
-    st.markdown("### GATILHOS PARA CANTAR")
-    gatilhos = gerar_gatilhos(dados_lote, info_cat_lote)
-    
-    for gatilho in gatilhos:
-        st.markdown(f'<div class="gatilho-card">{gatilho}</div>', unsafe_allow_html=True)
 
-else:
-    st.warning(f"Lote {num_lote} não encontrado na extração")
-    st.info("Clique em VER DEBUG na sidebar para verificar o formato do PDF")
+# Gatilhos
+st.markdown("### GATILHOS PARA CANTAR")
+gatilhos = gerar_gatilhos(dados_lote, genealogia, premios)
+
+for gatilho in gatilhos:
+    st.markdown(f'<div class="gatilho-card">{gatilho}</div>', unsafe_allow_html=True)
 
 # Rodapé
 st.markdown("---")
