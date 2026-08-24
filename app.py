@@ -1,7 +1,6 @@
 import streamlit as st
 import pdfplumber
 import re
-import time
 from io import BytesIO
 
 st.set_page_config(
@@ -43,6 +42,15 @@ st.markdown("""
         margin: 10px 0;
         font-size: 18px;
     }
+    .info-destaque {
+        background: #2196F3;
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        margin: 10px 0;
+        font-size: 20px;
+        font-weight: bold;
+    }
     .gatilho-card {
         background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
         color: white;
@@ -68,57 +76,45 @@ st.markdown("""
         font-weight: bold;
         font-size: 16px;
     }
-    .debug-box {
-        background: #333;
-        color: #0f0;
-        padding: 10px;
-        border-radius: 5px;
-        font-family: monospace;
-        font-size: 14px;
+    .animal-info {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
         margin: 10px 0;
-        max-height: 400px;
-        overflow-y: auto;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== PROCESSAMENTO DE PDF GRANDE ====================
-@st.cache_data(ttl=7200, show_spinner=False)  # Cache por 2 horas
+# ==================== PROCESSAMENTO DE PDF ====================
+@st.cache_data(ttl=7200, show_spinner=False)
 def processar_pdf_grande(file_bytes, tipo_arquivo):
-    """
-    Processa PDFs grandes de forma otimizada
-    tipo_arquivo: 'oe' para Ordem de Entrada, 'cat' para Catálogo
-    """
+    """Processa PDFs e extrai texto"""
     paginas = []
     
     if not file_bytes:
         return paginas
     
     try:
-        # Usa BytesIO para processamento em memória
         with pdfplumber.open(BytesIO(file_bytes)) as pdf:
             total_paginas = len(pdf.pages)
             
-            # Para catálogos, processa apenas primeiras 100 páginas
+            # Para catálogo, processa primeiras 100 páginas
             if tipo_arquivo == 'cat':
                 paginas_processar = min(total_paginas, 100)
-                st.info(f"📚 Catálogo com {total_paginas} páginas. Processando primeiras {paginas_processar}...")
             else:
-                # Para O.E., processa todas as páginas
                 paginas_processar = total_paginas
-                st.info(f"📋 O.E. com {total_paginas} páginas. Processando todas...")
             
             # Barra de progresso
             progress_bar = st.progress(0)
             status_text = st.empty()
             
             for i, page in enumerate(pdf.pages[:paginas_processar]):
-                # Atualiza progresso
                 progress = (i + 1) / paginas_processar
                 progress_bar.progress(progress)
-                status_text.text(f"📄 Processando página {i+1} de {paginas_processar}...")
+                status_text.text(f"📄 Lendo página {i+1} de {paginas_processar}...")
                 
-                # Extrai texto com múltiplas tentativas
+                # Extrai texto
                 texto = None
                 try:
                     texto = page.extract_text(layout=True)
@@ -131,39 +127,22 @@ def processar_pdf_grande(file_bytes, tipo_arquivo):
                     except:
                         pass
                 
-                # Se não conseguir extrair texto, tenta OCR básico
-                if not texto:
-                    try:
-                        # Verifica se tem imagens (pode ser PDF escaneado)
-                        if page.images:
-                            paginas.append(f"[PÁGINA {i+1} COM IMAGEM - NECESSITA OCR]")
-                            continue
-                    except:
-                        pass
-                
                 if texto:
                     paginas.append(texto)
             
-            # Limpa barra de progresso
             progress_bar.empty()
             status_text.empty()
             
     except Exception as e:
         st.error(f"Erro ao processar PDF: {str(e)}")
-        st.info("""
-        **Possíveis soluções:**
-        1. O PDF pode estar corrompido
-        2. O PDF pode ser muito grande (tente dividir em partes)
-        3. O PDF pode estar protegido por senha
-        """)
     
     return paginas
 
-# ==================== EXTRAÇÃO FLEXÍVEL ====================
+# ==================== EXTRAÇÃO DE DADOS DO GADO ====================
 @st.cache_data
-def extrair_lotes_flexivel(texto_oe_tuple):
+def extrair_dados_gado(texto_oe_tuple):
     """
-    EXTRAÇÃO FLEXÍVEL - Tenta TODOS os padrões possíveis
+    Extrai informações detalhadas do gado da Ordem de Entrada
     """
     texto_oe = list(texto_oe_tuple)
     sequencia = []
@@ -172,10 +151,10 @@ def extrair_lotes_flexivel(texto_oe_tuple):
     if not texto_oe:
         return sequencia, dados_por_lote
     
-    for pagina_idx, pagina in enumerate(texto_oe):
+    for pagina in texto_oe:
         linhas = pagina.split('\n')
         
-        for linha_idx, linha in enumerate(linhas):
+        for linha in linhas:
             linha_limpa = linha.strip()
             
             if not linha_limpa:
@@ -188,14 +167,14 @@ def extrair_lotes_flexivel(texto_oe_tuple):
                 if len(parts) >= 2:
                     lote_encontrado = None
                     
-                    # Estratégia 1: Procura "LT" ou "LOTE" explícito
+                    # Procura "LT" ou "LOTE"
                     for i, part in enumerate(parts):
                         m = re.search(r"\b(LT|LOTE)\s*[.:]?\s*(\d{1,4})", part, re.IGNORECASE)
                         if m:
                             lote_encontrado = m.group(2)
                             break
                     
-                    # Estratégia 2: Pega o primeiro número de 1-3 dígitos
+                    # Se não achou, pega primeiro número
                     if not lote_encontrado:
                         for i, part in enumerate(parts):
                             m = re.search(r"\b(\d{1,3})\b", part)
@@ -209,35 +188,53 @@ def extrair_lotes_flexivel(texto_oe_tuple):
                         if lt_num not in sequencia:
                             sequencia.append(lt_num)
                         
+                        # Inicializa dicionário de dados
                         dados = {
-                            "posicao": f"{len(sequencia)}º A ENTRAR",
                             "lote": lt_num,
-                            "categoria": "-",
-                            "produto": "-",
-                            "raca": "-",
-                            "sexo": "-",
-                            "idade": "-",
-                            "peso": "-",
-                            "registro": "-",
-                            "vendedor": "-"
+                            "posicao": f"{len(sequencia)}º",
+                            "categoria": "",
+                            "raca": "",
+                            "sexo": "",
+                            "idade": "",
+                            "peso": "",
+                            "registro": "",
+                            "pai": "",
+                            "mae": "",
+                            "vendedor": "",
+                            "descricao_completa": " | ".join(parts)
                         }
                         
-                        # Tenta identificar campos
-                        for part in parts:
+                        # Analisa cada parte para extrair informações
+                        for idx, part in enumerate(parts):
                             part_lower = part.lower()
                             
-                            if any(k in part_lower for k in ["touro", "vaca", "matriz", "novilha", "bezerro"]):
+                            # Categoria/Animal
+                            if any(k in part_lower for k in ["touro", "vaca", "matriz", "novilha", "bezerro", "garrote", "boi"]):
                                 dados["categoria"] = part
-                            elif any(k in part_lower for k in ["nelore", "angus", "girolando", "holandês"]):
+                            
+                            # Raça
+                            elif any(k in part_lower for k in ["nelore", "angus", "girolando", "holandês", "hereford", "braford", "simental"]):
                                 dados["raca"] = part
+                            
+                            # Sexo
                             elif any(k in part_lower for k in ["macho", "fêmea", "femea"]):
                                 dados["sexo"] = part
+                            
+                            # Peso (procura por kg ou @)
                             elif "kg" in part_lower or "@" in part:
                                 dados["peso"] = part
-                            elif any(k in part_lower for k in ["ano", "meses", "mes"]):
+                            
+                            # Idade
+                            elif any(k in part_lower for k in ["ano", "meses", "mes", "dia"]):
                                 dados["idade"] = part
-                            elif len(part) > 10:
-                                dados["produto"] = part
+                            
+                            # Registro
+                            elif "reg" in part_lower or "rg" in part_lower:
+                                dados["registro"] = part
+                            
+                            # Vendedor (geralmente última coluna)
+                            elif idx == len(parts) - 1:
+                                dados["vendedor"] = part
                         
                         dados_por_lote[lt_num] = dados
             
@@ -255,19 +252,21 @@ def extrair_lotes_flexivel(texto_oe_tuple):
                     descricao = linha_limpa[m.end():].strip()
                     
                     dados_por_lote[lt_num] = {
-                        "posicao": f"{len(sequencia)}º A ENTRAR",
                         "lote": lt_num,
-                        "categoria": "-",
-                        "produto": descricao if descricao else "-",
-                        "raca": "-",
-                        "sexo": "-",
-                        "idade": "-",
-                        "peso": "-",
-                        "registro": "-",
-                        "vendedor": "-"
+                        "posicao": f"{len(sequencia)}º",
+                        "categoria": "",
+                        "raca": "",
+                        "sexo": "",
+                        "idade": "",
+                        "peso": "",
+                        "registro": "",
+                        "pai": "",
+                        "mae": "",
+                        "vendedor": "",
+                        "descricao_completa": descricao
                     }
             
-            # ============ PADRÃO 3: Número no início da linha ============
+            # ============ PADRÃO 3: Número no início ============
             elif re.match(r"^\s*(\d{1,3})\s*[-.)]?\s*", linha_limpa):
                 m = re.match(r"^\s*(\d{1,3})\s*[-.)]?\s*", linha_limpa)
                 numero = int(m.group(1))
@@ -281,106 +280,92 @@ def extrair_lotes_flexivel(texto_oe_tuple):
                     descricao = linha_limpa[m.end():].strip()
                     
                     dados_por_lote[lt_num] = {
-                        "posicao": f"{len(sequencia)}º A ENTRAR",
                         "lote": lt_num,
-                        "categoria": "-",
-                        "produto": descricao if descricao else "-",
-                        "raca": "-",
-                        "sexo": "-",
-                        "idade": "-",
-                        "peso": "-",
-                        "registro": "-",
-                        "vendedor": "-"
+                        "posicao": f"{len(sequencia)}º",
+                        "categoria": "",
+                        "raca": "",
+                        "sexo": "",
+                        "idade": "",
+                        "peso": "",
+                        "registro": "",
+                        "pai": "",
+                        "mae": "",
+                        "vendedor": "",
+                        "descricao_completa": descricao
                     }
-            
-            # ============ PADRÃO 4: Qualquer linha com número ============
-            else:
-                m = re.search(r"\b(\d{1,3})\b", linha_limpa)
-                if m:
-                    numero = int(m.group(1))
-                    
-                    if 1 <= numero <= 500:
-                        if len(linha_limpa) > 3:
-                            lt_num = f"{numero:02d}"
-                            
-                            if lt_num not in sequencia:
-                                sequencia.append(lt_num)
-                            
-                            dados_por_lote[lt_num] = {
-                                "posicao": f"{len(sequencia)}º A ENTRAR",
-                                "lote": lt_num,
-                                "categoria": "-",
-                                "produto": linha_limpa,
-                                "raca": "-",
-                                "sexo": "-",
-                                "idade": "-",
-                                "peso": "-",
-                                "registro": "-",
-                                "vendedor": "-"
-                            }
     
     return sequencia, dados_por_lote
 
-# ==================== GATILHOS ====================
-def gerar_gatilhos_simples(dados_lote):
-    """Gera gatilhos básicos"""
+# ==================== GATILHOS PARA CANTAR ====================
+def gerar_gatilhos(dados_lote):
+    """Gera gatilhos baseados nas informações do animal"""
     gatilhos = []
     
     if not dados_lote:
         return [
-            "⭐ ANIMAL SELECIONADO: Qualidade superior!",
-            "📋 DOCUMENTAÇÃO: Registro em dia!",
-            "🔨 OPORTUNIDADE: Preço especial!"
+            "⭐ ANIMAL SELECIONADO: Qualidade superior para seu plantel!",
+            "📋 DOCUMENTAÇÃO: Registro em dia, procedência garantida!",
+            "🔨 OPORTUNIDADE: Preço especial para esse lote!"
         ]
     
-    produto = dados_lote.get("produto", "").lower()
-    categoria = dados_lote.get("categoria", "").lower()
-    raca = dados_lote.get("raca", "").lower()
+    # Junta todas as informações para análise
+    info_completa = " ".join([
+        dados_lote.get("categoria", ""),
+        dados_lote.get("raca", ""),
+        dados_lote.get("sexo", ""),
+        dados_lote.get("descricao_completa", "")
+    ]).lower()
     
-    if any(k in produto + categoria for k in ["touro", "macho"]):
+    # Gatilhos específicos
+    if "touro" in info_completa:
         gatilhos.extend([
-            "🐂 REPRODUTOR: Genética superior!",
-            "📈 GANHO DE PESO: Bezerros pesados!",
-            "🔨 FECHAMENTO: Oportunidade única!"
-        ])
-    elif any(k in produto + categoria for k in ["vaca", "matriz", "fêmea", "femea"]):
-        gatilhos.extend([
-            "👑 MATRIZ: Habilidade materna!",
-            "🥛 PRODUÇÃO: Excelente produtividade!",
-            "🔨 FECHAMENTO: Fêmea de elite!"
-        ])
-    elif any(k in produto + categoria for k in ["cavalo", "égua", "mangalarga"]):
-        gatilhos.extend([
-            "🐴 MARCHA: Conforto e elegância!",
-            "🏇 DESEMPENHO: Pronto para competições!",
-            "🔨 FECHAMENTO: Animal diferenciado!"
-        ])
-    else:
-        gatilhos.extend([
-            "⭐ QUALIDADE: Animal selecionado!",
-            "📋 PROCEDÊNCIA: Origem garantida!",
-            "🔨 OPORTUNIDADE: Preço imperdível!"
+            "🐂 TOURO MELHORADOR: Genética superior para revolucionar seu rebanho!",
+            "📈 GANHO DE PESO: Bezerros pesados e precoces na desmama!"
         ])
     
-    if dados_lote.get("peso") and dados_lote["peso"] != "-":
-        gatilhos.append(f"⚖️ PESO: {dados_lote['peso']}!")
+    if "matriz" in info_completa or "vaca" in info_completa:
+        gatilhos.extend([
+            "👑 MATRIZ: Habilidade materna comprovada!",
+            "🥛 PRODUÇÃO: Excelente produtividade!"
+        ])
     
-    if dados_lote.get("raca") and dados_lote["raca"] != "-":
+    if "nelore" in info_completa:
+        gatilhos.append("🏆 NELORE: Raça que domina o mercado brasileiro!")
+    
+    if "angus" in info_completa:
+        gatilhos.append("🥩 ANGUS: Carne premium, maciez garantida!")
+    
+    # Gatilhos genéricos
+    gatilhos.extend([
+        "⭐ QUALIDADE: Animal selecionado a dedo!",
+        "📋 PROCEDÊNCIA: Origem garantida!",
+        "🔨 OPORTUNIDADE: Preço imperdível!"
+    ])
+    
+    # Adiciona informações específicas
+    if dados_lote.get("peso"):
+        gatilhos.append(f"⚖️ PESO: {dados_lote['peso']} de pura produtividade!")
+    
+    if dados_lote.get("raca"):
         gatilhos.append(f"🧬 GENÉTICA {dados_lote['raca'].upper()}: Linhagem superior!")
     
-    return gatilhos[:4]
+    if dados_lote.get("idade"):
+        gatilhos.append(f"📅 IDADE: {dados_lote['idade']} - Fase perfeita!")
+    
+    return gatilhos[:5]
 
 # ==================== INTERFACE PRINCIPAL ====================
 st.title("🎤 PAINEL DO LEILOEIRO")
+st.markdown("---")
 
 # Sidebar
 with st.sidebar:
-    st.header("📂 Arquivos")
+    st.header("📂 Arquivo")
     
     st.markdown("""
     <div class="upload-info">
         📤 Tamanho máximo: 500MB<br>
-        💡 Arquivos grandes podem levar alguns minutos
+        💡 Aceita PDFs grandes
     </div>
     """, unsafe_allow_html=True)
     
@@ -393,7 +378,7 @@ with st.sidebar:
     
     if file_oe:
         tamanho_mb = len(file_oe.getvalue()) / (1024 * 1024)
-        st.success(f"✅ O.E. carregada! ({tamanho_mb:.1f} MB)")
+        st.success(f"✅ Arquivo carregado! ({tamanho_mb:.1f} MB)")
     
     st.markdown("---")
     st.markdown("**📚 Catálogo (opcional):**")
@@ -419,14 +404,14 @@ with st.sidebar:
     
     # Debug
     st.markdown("---")
-    if st.button("🔍 VER DEBUG DA EXTRAÇÃO", use_container_width=True):
+    if st.button("🔍 VER DEBUG", use_container_width=True):
         st.session_state.mostrar_debug = True
     else:
         st.session_state.mostrar_debug = False
 
 # Processar O.E.
 if file_oe:
-    with st.spinner("🔄 Processando Ordem de Entrada... (pode demorar para arquivos grandes)"):
+    with st.spinner("🔄 Lendo Ordem de Entrada..."):
         file_bytes = file_oe.getvalue()
         texto_oe = processar_pdf_grande(file_bytes, 'oe')
         texto_oe_tuple = tuple(texto_oe) if texto_oe else tuple()
@@ -436,14 +421,14 @@ else:
 
 # Processar Catálogo (se existir)
 if file_cat:
-    with st.spinner("🔄 Processando Catálogo... (pode demorar para arquivos grandes)"):
+    with st.spinner("🔄 Lendo Catálogo..."):
         file_bytes = file_cat.getvalue()
         texto_cat = processar_pdf_grande(file_bytes, 'cat')
 else:
     texto_cat = []
 
 # Extrair dados
-sequencia_oe, mapa_oe = extrair_lotes_flexivel(texto_oe_tuple)
+sequencia_oe, mapa_oe = extrair_dados_gado(texto_oe_tuple)
 
 # Mostrar debug
 if hasattr(st.session_state, 'mostrar_debug') and st.session_state.mostrar_debug and texto_oe:
@@ -470,19 +455,6 @@ if sequencia_oe:
     else:
         lista_lotes = sorted(sequencia_oe, key=lambda x: int(x))
         ordem_atual = "🔢 ORDEM NUMÉRICA"
-    
-    # Adiciona lotes do catálogo
-    if texto_cat:
-        lotes_cat = set()
-        for p in texto_cat:
-            encontrados = re.findall(r"\b(?:LOTE|LT)?\s*(\d{1,3})\b", p, re.IGNORECASE)
-            for l in encontrados:
-                if 1 <= int(l) <= 500:
-                    lotes_cat.add(f"{int(l):02d}")
-        
-        lotes_faltantes = sorted([l for l in lotes_cat if l not in sequencia_oe])
-        if lotes_faltantes:
-            lista_lotes.extend(lotes_faltantes)
 else:
     lista_lotes = []
     ordem_atual = "⚠️ NENHUM LOTE ENCONTRADO"
@@ -490,10 +462,6 @@ else:
 # Estado da sessão
 if 'lote_idx' not in st.session_state:
     st.session_state.lote_idx = 0
-if 'lance_atual' not in st.session_state:
-    st.session_state.lance_atual = {}
-if 'lotes_vendidos' not in st.session_state:
-    st.session_state.lotes_vendidos = []
 
 # Verificar se há lotes
 if not lista_lotes:
@@ -501,7 +469,7 @@ if not lista_lotes:
     st.info("""
     **Dicas se nenhum lote foi encontrado:**
     1. Verifique se o PDF tem texto (não é escaneado como imagem)
-    2. Clique em "VER DEBUG DA EXTRAÇÃO" na sidebar
+    2. Clique em "VER DEBUG" na sidebar
     3. Me envie as primeiras linhas do debug
     """)
     st.stop()
@@ -550,62 +518,46 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 if dados_lote:
+    # Informações principais do animal
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("### 📋 Informações")
+        st.markdown("### 📋 DADOS DO ANIMAL")
         st.markdown(f"""
-        <div class="info-card">
-            <strong>🏷️ Categoria:</strong> {dados_lote.get("categoria", "-")}<br>
-            <strong>🐾 Raça:</strong> {dados_lote.get("raca", "-")}<br>
-            <strong>⚤ Sexo:</strong> {dados_lote.get("sexo", "-")}
+        <div class="animal-info">
+            <strong>🏷️ CATEGORIA:</strong> {dados_lote.get("categoria", "-")}<br>
+            <strong>🐾 RAÇA:</strong> {dados_lote.get("raca", "-")}<br>
+            <strong>⚤ SEXO:</strong> {dados_lote.get("sexo", "-")}
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        st.markdown("### ⚖️ Detalhes")
+        st.markdown("### ⚖️ CARACTERÍSTICAS")
         st.markdown(f"""
-        <div class="info-card">
-            <strong>⚖️ Peso:</strong> {dados_lote.get("peso", "-")}<br>
-            <strong>📅 Idade:</strong> {dados_lote.get("idade", "-")}<br>
-            <strong>📜 Registro:</strong> {dados_lote.get("registro", "-")}
+        <div class="animal-info">
+            <strong>⚖️ PESO:</strong> {dados_lote.get("peso", "-")}<br>
+            <strong>📅 IDADE:</strong> {dados_lote.get("idade", "-")}<br>
+            <strong>📜 REGISTRO:</strong> {dados_lote.get("registro", "-")}
         </div>
         """, unsafe_allow_html=True)
     
-    if dados_lote.get("produto") and dados_lote["produto"] != "-":
-        st.markdown("### 📝 Descrição")
-        st.info(dados_lote["produto"])
+    # Descrição completa
+    if dados_lote.get("descricao_completa"):
+        st.markdown("### 📝 DESCRIÇÃO COMPLETA")
+        st.markdown(f"""
+        <div class="info-card">
+            {dados_lote["descricao_completa"]}
+        </div>
+        """, unsafe_allow_html=True)
     
-    st.markdown("### 💰 Controle de Lance")
-    col_lance, col_vender = st.columns([2, 1])
+    # Vendedor
+    if dados_lote.get("vendedor"):
+        st.markdown("### 👨‍🌾 VENDEDOR")
+        st.info(dados_lote["vendedor"])
     
-    with col_lance:
-        if num_lote not in st.session_state.lance_atual:
-            st.session_state.lance_atual[num_lote] = 0
-        
-        novo_lance = st.number_input(
-            "Valor do lance (R$):",
-            min_value=0.0,
-            value=float(st.session_state.lance_atual.get(num_lote, 0)),
-            step=100.0,
-            key=f"lance_{num_lote}",
-            format="%.2f"
-        )
-        st.session_state.lance_atual[num_lote] = novo_lance
-    
-    with col_vender:
-        st.markdown("")
-        st.markdown("")
-        if st.button("✅ VENDIDO", use_container_width=True, type="primary", key=f"vender_{num_lote}"):
-            if num_lote not in st.session_state.lotes_vendidos:
-                st.session_state.lotes_vendidos.append(num_lote)
-                st.balloons()
-                st.success(f"🎉 Lote {num_lote} VENDIDO!")
-                time.sleep(1)
-                st.rerun()
-    
-    st.markdown("### 🎤 Gatilhos para Cantar")
-    gatilhos = gerar_gatilhos_simples(dados_lote)
+    # Gatilhos
+    st.markdown("### 🎤 GATILHOS PARA CANTAR")
+    gatilhos = gerar_gatilhos(dados_lote)
     
     for i, gatilho in enumerate(gatilhos):
         st.markdown(f"""
@@ -616,17 +568,8 @@ if dados_lote:
 
 else:
     st.warning(f"⚠️ Lote {num_lote} não encontrado na extração")
+    st.info("Clique em VER DEBUG na sidebar para verificar o formato do PDF")
 
-# Rodapé
+# Rodapé simples
 st.markdown("---")
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.metric("📋 Total de Lotes", len(lista_lotes))
-
-with col2:
-    st.metric("✅ Vendidos", len(st.session_state.lotes_vendidos))
-
-with col3:
-    valor_total = sum(st.session_state.lance_atual.get(lote, 0) for lote in st.session_state.lotes_vendidos)
-    st.metric("💰 Total", f"R$ {valor_total:,.0f}")
+st.markdown(f"**📋 Total de lotes: {len(lista_lotes)}**")
