@@ -1,0 +1,10 @@
+# .streamlit/config.toml (opcional, para otimizar)
+[server]
+maxUploadSize = 10  # Limite de upload em MB
+headless = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "dark"  # Melhor para leitura em ambientes com pouca luz
