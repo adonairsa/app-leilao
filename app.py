@@ -2,27 +2,16 @@ import streamlit as st
 import pdfplumber
 import re
 
-# Configuração da página
 st.set_page_config(page_title="PAINEL DO LEILOEIRO", layout="wide")
 
-# Estilos CSS com contraste corrigido (Letras PRETAS para leitura fácil)
 st.markdown("""
     <style>
     .big-font { font-size: 28px !important; font-weight: bold; color: #1E3A8A; }
     .card-lote { background-color: #F3F4F6; padding: 15px; border-radius: 10px; border-left: 8px solid #1E3A8A; color: #000000 !important; }
-    .card-genetica { background-color: #FEF3C7; padding: 15px; border-radius: 8px; border-left: 6px solid #F59E0B; margin-bottom: 15px; color: #000000 !important; }
-    .card-jargao { 
-        background-color: #ECFDF5; 
-        padding: 14px; 
-        border-radius: 8px; 
-        border-left: 6px solid #10B981; 
-        margin-bottom: 10px; 
-        color: #000000 !important; 
-        font-size: 18px;
-        font-weight: 500;
-    }
-    .card-jargao b { color: #000000 !important; font-weight: bold; }
-    .texto-preto { color: #000000 !important; font-size: 16px; font-weight: bold; }
+    .card-pai { background-color: #E0F2FE; padding: 10px; border-radius: 6px; border-left: 5px solid #0284C7; color: #000 !important; margin-bottom: 5px; font-weight: bold; }
+    .card-mae { background-color: #FCE7F3; padding: 10px; border-radius: 6px; border-left: 5px solid #DB2777; color: #000 !important; margin-bottom: 5px; font-weight: bold; }
+    .card-avo { background-color: #FEF3C7; padding: 10px; border-radius: 6px; border-left: 5px solid #D97706; color: #000 !important; margin-bottom: 5px; font-weight: bold; }
+    .card-jargao { background-color: #ECFDF5; padding: 12px; border-radius: 8px; border-left: 6px solid #10B981; margin-bottom: 8px; color: #000000 !important; font-size: 16px; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -63,39 +52,56 @@ with col_lote:
     st.metric(label="VALOR TOTAL DO LOTE", value=f"R$ {valor_total:,.2f}")
 
 with col_info:
-    st.markdown(f"<div class='card-lote'><span class='big-font'>📌 FICHA TÉCNICA — LOTE {num_lote}</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='card-lote'><span class='big-font'>📌 ARVORE GENEALÓGICA — LOTE {num_lote}</span></div>", unsafe_allow_html=True)
     st.write("")
     
-    # BUSCA AVANÇADA POR BLOCO DE LOTE
-    bloco_encontrado = []
-    
+    bloco_lote = []
     if text_content:
-        # Percorre todas as páginas do catálogo
         for pagina in text_content:
             linhas = pagina.split('\n')
             for i, linha in enumerate(linhas):
-                # Procura termos como "LOTE 12", "LOTE: 12" ou "12" no início da linha
                 if re.search(rf"\b(lote\s*)?{num_lote}\b", linha, re.IGNORECASE):
-                    # Pega a linha do lote e até 8 linhas abaixo (onde fica a linhagem/família)
                     inicio = max(0, i - 1)
-                    fim = min(len(linhas), i + 9)
-                    bloco_encontrado = linhas[inicio:fim]
+                    fim = min(len(linhas), i + 10)
+                    bloco_lote = linhas[inicio:fim]
                     break
-            if bloco_encontrado:
+            if bloco_lote:
                 break
+
+    if bloco_lote:
+        texto_bloco = "\n".join(bloco_lote)
+
+        # Variáveis de Linhagem
+        pai = "Não identificado"
+        mae = "Não identificada"
+        avo_pat = "Não identificado"
+        avo_mat = "Não identificado"
+
+        # Extração por Padrões Comuns em Catálogos
+        for l in bloco_lote:
+            l_lower = l.lower()
+            if "pai:" in l_lower or "sire:" in l_lower:
+                pai = l
+            elif "mãe:" in l_lower or "mae:" in l_lower or "dam:" in l_lower:
+                mae = l
+            elif "avô mat" in l_lower or "a.m." in l_lower or "m3:" in l_lower:
+                avo_mat = l
+            elif "avô pat" in l_lower or "a.p." in l_lower or "p2:" in l_lower:
+                avo_pat = l
+
+        # Exibição Visual Organizada na Tela
+        st.markdown(f"<div class='card-pai'>🟦 <b>PAI:</b> {pai}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card-mae'>🟥 <b>MÃE:</b> {mae}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card-avo'>🟨 <b>AVÔ PATERNO:</b> {avo_pat}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card-avo'>🟨 <b>AVÔ MATERNO:</b> {avo_mat}</div>", unsafe_allow_html=True)
         
-        if bloco_encontrado:
-            st.markdown("### 🧬 Dados Genéticos & Ficha do Animal")
-            conteudo_bloco = "<br>".join([f"• <b>{l.strip()}</b>" for l in bloco_encontrado if l.strip()])
-            st.markdown(f"<div class='card-genetica'><div class='texto-preto'>{conteudo_bloco}</div></div>", unsafe_allow_html=True)
-        else:
-            st.warning(f"Lote {num_lote} não localizado no texto do PDF.")
+        with st.expander("📄 Ver bloco completo do texto do PDF"):
+            for l in bloco_lote:
+                st.write(f"• {l}")
     else:
-        st.info("👈 Suba o PDF do catálogo no menu lateral para extrair a genealogia dos animais.")
+        st.info("👈 Suba o catálogo no menu da esquerda para visualizar a genealogia.")
 
     st.markdown("---")
-    st.markdown("### 🎙️ Gatilhos de Canta para o Microfone")
-    
-    st.markdown("<div class='card-jargao'><b>Morfologia:</b> Garupa larga, carcaça coberta e padrão de cabeceira!</div>", unsafe_allow_html=True)
-    st.markdown("<div class='card-jargao'><b>Genética:</b> Linhagem consagrada, raça pura PO e avaliação de ponta!</div>", unsafe_allow_html=True)
-    st.markdown("<div class='card-jargao'><b>Fechamento:</b> Lote com essa avaliação genética não sobra na pista!</div>", unsafe_allow_html=True)
+    st.markdown("### 🎙️ Gatilhos para o Microfone")
+    st.markdown("<div class='card-jargao'><b>Genética:</b> Sangue aberto, pedigree fechado na cabeceira da raça!</div>", unsafe_allow_html=True)
+    st.markdown("<div class='card-jargao'><b>Linhagem Materna:</b> Família consagrada em pista com barriga de ouro!</div>", unsafe_allow_html=True)
