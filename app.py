@@ -2,23 +2,37 @@ import streamlit as st
 import pdfplumber
 import re
 
-st.set_page_config(page_title="PAINEL DO LEILOEIRO PRO", layout="wide")
+st.set_page_config(page_title="PAINEL DE PISTA PRO", layout="wide")
 
-# Estilos CSS de Alta Visibilidade para Tablet / Celular
+# CSS COM BLINDAGEM DE CONTRASTE E VISUAL CLEAN
 st.markdown("""
     <style>
-    .big-lote { font-size: 36px !important; font-weight: bold; color: #1E3A8A; text-align: center; }
-    .card-oe { background-color: #FEF3C7; padding: 12px; border-radius: 8px; border-left: 6px solid #D97706; color: #000 !important; font-size: 18px; margin-bottom: 15px; }
-    .card-lote { background-color: #F3F4F6; padding: 15px; border-radius: 10px; border-left: 8px solid #1E3A8A; color: #000 !important; }
-    .card-pai { background-color: #E0F2FE; padding: 12px; border-radius: 6px; border-left: 5px solid #0284C7; color: #000 !important; margin-bottom: 8px; }
-    .card-mae { background-color: #FCE7F3; padding: 12px; border-radius: 6px; border-left: 5px solid #DB2777; color: #000 !important; margin-bottom: 8px; }
-    .card-jargao { background-color: #ECFDF5; padding: 12px; border-radius: 8px; border-left: 6px solid #10B981; margin-bottom: 8px; color: #000 !important; font-size: 16px; font-weight: bold; }
-    .texto-pista { color: #000000 !important; font-weight: bold; font-size: 16px; }
+    .big-lote { font-size: 40px !important; font-weight: bold; color: #1E3A8A; text-align: center; margin-bottom: 20px; }
+    
+    .card-oe, .card-lote, .card-pai, .card-mae, .card-jargao {
+        background-color: #FFFFFF !important;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 12px;
+        box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .card-oe { border-left: 8px solid #D97706; }
+    .card-lote { border-left: 8px solid #1E3A8A; }
+    .card-pai { border-left: 6px solid #0284C7; }
+    .card-mae { border-left: 6px solid #DB2777; }
+    .card-jargao { border-left: 6px solid #10B981; }
+
+    .card-oe *, .card-lote *, .card-pai *, .card-mae *, .card-jargao *, .texto-pista {
+        color: #000000 !important;
+        font-weight: bold !important;
+    }
+
     div[data-testid="stToolbar"] {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-# PROCESSAMENTO DE PDFS COM MEMÓRIA (CACHE)
+# PROCESSAMENTO DE PDFS COM CACHE
 @st.cache_data
 def processar_pdf(file):
     paginas = []
@@ -30,7 +44,71 @@ def processar_pdf(file):
                     paginas.append(texto)
     return paginas
 
-# 1. MENU LATERAL (UPLOADS INDEPENDENTES)
+# PARSER EXATO DA ORDEM DE ENTRADA
+def buscar_dados_oe_exatos(texto_oe, num_lote_alvo):
+    if not texto_oe:
+        return None
+    
+    lote_alvo_int = str(int(num_lote_alvo))
+    
+    for pagina in texto_oe:
+        for linha in pagina.split('\n'):
+            if '|' in linha:
+                colunas = [c.strip() for c in linha.split('|') if c.strip()]
+                if len(colunas) >= 2:
+                    lote_col = re.sub(r"\D", "", colunas[1])
+                    if lote_col and str(int(lote_col)) == lote_alvo_int:
+                        return {
+                            "posicao": colunas[0] if len(colunas) > 0 else "-",
+                            "lote": colunas[1] if len(colunas) > 1 else "-",
+                            "qtd": colunas[2] if len(colunas) > 2 else "-",
+                            "idade": colunas[3] if len(colunas) > 3 else "-",
+                            "peso": colunas[4] if len(colunas) > 4 else "-",
+                            "categoria": colunas[5] if len(colunas) > 5 else "-",
+                            "produto": colunas[6] if len(colunas) > 6 else "-",
+                            "vendedor": colunas[7] if len(colunas) > 7 else "-"
+                        }
+            else:
+                match = re.search(rf"^(\d+[°º]?)\s+(\d{{1,3}})\s+(\d+)\s+([\d\w]+)\s+([\d\wKg]*)\s+(.+)", linha.strip())
+                if match:
+                    pos, lt, qtd, idade, peso, resto = match.groups()
+                    if str(int(lt)) == lote_alvo_int:
+                        return {
+                            "posicao": pos, "lote": lt, "qtd": qtd, 
+                            "idade": idade, "peso": peso, "categoria": "Lote de Pista", 
+                            "produto": resto, "vendedor": "-"
+                        }
+    return None
+
+# GERADOR DE GATILHOS POR CATEGORIA
+def gerar_gatilhos_categoria(texto_completo):
+    txt = texto_completo.lower()
+    if any(k in txt for k in ["trator", "máquina", "maquina", "colheitadeira", "cv", "horímetro"]):
+        return [
+            "⚙️ <b>CONSERVAÇÃO:</b> Equipamento revisado, mecânica forte e pronto para ir direto pro trabalho!",
+            "🚜 <b>OPORTUNIDADE:</b> Investimento com retorno imediato para a operação da fazenda!",
+            "🔨 <b>FECHAMENTO:</b> Preço de ocasião para máquina desse porte!"
+        ]
+    elif any(k in txt for k in ["cavalo", "égua", "egua", "potro", "mangalarga", "quarto de milha", "marcha"]):
+        return [
+            "🐴 <b>MORFOLOGIA E MARCHA:</b> Animal de selar impecável, aprumos corretos e ótimo temperamento!",
+            "🏆 <b>PEDIGREE:</b> Sanguíneo fechado em campeões de pista, papel de destaque!",
+            "🔨 <b>FECHAMENTO:</b> Prontidão total para dar show na pista ou valorizar a tropa!"
+        ]
+    elif any(k in txt for k in ["leite", "lactação", "girolando", "holandês", "úbere"]):
+        return [
+            "🥛 <b>PRODUÇÃO:</b> Sistema mamário impecável e alta persistência de lactação!",
+            "🧬 <b>GENÉTICA LEITEIRA:</b> Matriz para colocar balde cheio e alavancar a produção!",
+            "🔨 <b>FECHAMENTO:</b> Fêmea que se paga no leite, oportunidade certa para o produtor!"
+        ]
+    else:
+        return [
+            "OB <b>MORFOLOGIA:</b> Garupa larga, carcaça coberta, costelas bem arqueadas e selo de raça!",
+            "🧬 <b>GENÉTICA:</b> Linhagem consagrada para chancelar a cabeceira do rebanho!",
+            "🔨 <b>FECHAMENTO:</b> Avaliação genética impecável, oportunidade que não sobra na pista!"
+        ]
+
+# 1. MENU LATERAL
 st.sidebar.header("📂 Arquivos do Leilão")
 file_oe = st.sidebar.file_uploader("1. Ordem de Entrada (O.E.)", type="pdf")
 file_cat = st.sidebar.file_uploader("2. Catálogo do Leilão", type="pdf")
@@ -38,7 +116,14 @@ file_cat = st.sidebar.file_uploader("2. Catálogo do Leilão", type="pdf")
 texto_oe = processar_pdf(file_oe)
 texto_cat = processar_pdf(file_cat)
 
-# Identificação automática de lotes disponíveis
+st.sidebar.markdown("---")
+st.sidebar.header("⚙️ Sequência dos Lotes")
+modo_ordenacao = st.sidebar.radio(
+    "Ordenar exibição por:",
+    ["Ordem da Ordem de Entrada (1º, 2º...)", "Ordem Numérica (01, 02, 03...)"]
+)
+
+# LISTAGEM DE LOTES
 lotes_detectados = set()
 for p in texto_oe + texto_cat:
     encontrados = re.findall(r"\b(?:LOTE|LT)?\s*(\d{1,3})\b", p, re.IGNORECASE)
@@ -48,14 +133,10 @@ for p in texto_oe + texto_cat:
 
 lista_lotes = sorted(list(lotes_detectados), key=lambda x: int(x)) if lotes_detectados else [f"{i:02d}" for i in range(1, 51)]
 
-# Estado da sessão para navegação por botões
-if 'lote_idx' not in st.session_state:
+if 'lote_idx' not in st.session_state or st.session_state.lote_idx >= len(lista_lotes):
     st.session_state.lote_idx = 0
 
-if st.session_state.lote_idx >= len(lista_lotes):
-    st.session_state.lote_idx = 0
-
-# 2. BARRA SUPERIOR DE NAVEGAÇÃO DE PISTA
+# 2. NAVEGAÇÃO SUPERIOR
 col_prev, col_select, col_next = st.columns([1, 2, 1])
 
 with col_prev:
@@ -68,7 +149,7 @@ with col_next:
 
 with col_select:
     lote_selecionado = st.selectbox(
-        "Selecionar Lote Direto:", 
+        "Ir Direto ao Lote:", 
         options=lista_lotes, 
         index=st.session_state.lote_idx,
         key="select_lote_box"
@@ -79,33 +160,33 @@ num_lote = lista_lotes[st.session_state.lote_idx]
 
 st.markdown("---")
 
-# 3. PAINEL PRINCIPAL DE PISTA
-col_lote, col_info = st.columns([1, 2])
+# 3. PAINEL PRINCIPAL DE PISTA (AMPLIADO)
+col_lote, col_info = st.columns([1, 3])
 
 with col_lote:
-    st.markdown(f"<p class='big-lote'>LOTE {num_lote}</p>", unsafe_allow_html=True)
-    
-    # Calculadora de Pista
-    st.subheader("🧮 Calculadora de Parcela")
-    qtd_parcelas = st.number_input("Nº de Parcelas", value=30, step=1)
-    valor_parcela = st.number_input("Valor Parcela (R$)", value=500.0, step=50.0)
-    valor_total = qtd_parcelas * valor_parcela
-    
-    st.metric(label="TOTAL DO LOTE", value=f"R$ {valor_total:,.2f}")
+    st.markdown(f"<p class='big-lote'>LOTE<br>{num_lote}</p>", unsafe_allow_html=True)
 
 with col_info:
-    # A) BUSCA NA ORDEM DE ENTRADA (O.E.)
-    dados_oe = []
-    if texto_oe:
-        for p in texto_oe:
-            for linha in p.split('\n'):
-                if re.search(rf"\b0*{int(num_lote)}\b", linha):
-                    dados_oe.append(linha.strip())
+    texto_acumulado = ""
+
+    # A) EXIBIÇÃO FORMATADA DA O.E.
+    dados_oe = buscar_dados_oe_exatos(texto_oe, num_lote)
     
     if dados_oe:
-        st.markdown(f"<div class='card-oe'>📋 <b>ORDEM DE ENTRADA:</b><br>{'<br>'.join(dados_oe[:3])}</div>", unsafe_allow_html=True)
+        texto_acumulado += f"{dados_oe['categoria']} {dados_oe['produto']}"
+        
+        st.markdown(f"""
+        <div class='card-oe'>
+            <span class='texto-pista' style='font-size:18px;'>📋 DADOS DA ORDEM DE ENTRADA</span><br><br>
+            <span class='texto-pista'>• Posição na Pista:</span> {dados_oe['posicao']} A ENTRAR<br>
+            <span class='texto-pista'>• Animal / Produto:</span> {dados_oe['produto']}<br>
+            <span class='texto-pista'>• Categoria:</span> {dados_oe['categoria']}<br>
+            <span class='texto-pista'>• Peso:</span> {dados_oe['peso']} &nbsp;|&nbsp; <span class='texto-pista'>Idade:</span> {dados_oe['idade']} &nbsp;|&nbsp; <span class='texto-pista'>Qtd:</span> {dados_oe['qtd']}<br>
+            <span class='texto-pista'>• Vendedor:</span> {dados_oe['vendedor']}
+        </div>
+        """, unsafe_allow_html=True)
 
-    # B) BUSCA NO CATÁLOGO (GENEALOGIA)
+    # B) BUSCA NO CATÁLOGO (PEDIGREE)
     bloco_cat = []
     if texto_cat:
         for p in texto_cat:
@@ -115,13 +196,13 @@ with col_info:
                     inicio = max(0, i - 2)
                     fim = min(len(linhas), i + 14)
                     bloco_cat = linhas[inicio:fim]
+                    texto_acumulado += " ".join(bloco_cat)
                     break
             if bloco_cat:
                 break
 
     if bloco_cat:
         st.markdown(f"<div class='card-lote'><span class='texto-pista'>📌 PEDIGREE DO CATÁLOGO — LOTE {num_lote}</span></div>", unsafe_allow_html=True)
-        st.write("")
         
         esquerdas, direitas = [], []
         for l in bloco_cat:
@@ -134,18 +215,18 @@ with col_info:
 
         col_p, col_m = st.columns(2)
         with col_p:
-            st.markdown("<div class='card-pai'>🟦 <b>LINHA PATERNA (ESQUERDA)</b></div>", unsafe_allow_html=True)
+            st.markdown("<div class='card-pai'><span class='texto-pista'>🟦 LINHA PATERNA (ESQUERDA)</span></div>", unsafe_allow_html=True)
             for item in esquerdas[:5]:
                 st.markdown(f"<p class='texto-pista'>• {item}</p>", unsafe_allow_html=True)
 
         with col_m:
-            st.markdown("<div class='card-mae'>🟥 <b>LINHA MATERNA (DIREITA)</b></div>", unsafe_allow_html=True)
+            st.markdown("<div class='card-mae'><span class='texto-pista'>🟥 LINHA MATERNA (DIREITA)</span></div>", unsafe_allow_html=True)
             for item in direitas[:5]:
                 st.markdown(f"<p class='texto-pista'>• {item}</p>", unsafe_allow_html=True)
-    elif not texto_oe and not texto_cat:
-        st.info("👈 Dica: Suba a Ordem de Entrada ou o Catálogo no menu da esquerda. Se não tiver nenhum arquivo, use a calculadora e a navegação normalmente!")
 
+    # C) GATILHOS AUTOMÁTICOS
+    gatilhos = gerar_gatilhos_categoria(texto_acumulado)
     st.markdown("---")
-    st.markdown("### 🎙️ Gatilhos Rápidos para o Microfone")
-    st.markdown("<div class='card-jargao'><b>Morfologia:</b> Garupa larga, carcaça coberta e padrão de cabeceira!</div>", unsafe_allow_html=True)
-    st.markdown("<div class='card-jargao'><b>Oportunidade:</b> Raça pura, avaliação de ponta e liquidez imediata na pista!</div>", unsafe_allow_html=True)
+    st.markdown("### 🎙️ Gatilhos para o Microfone")
+    for g in gatilhos:
+        st.markdown(f"<div class='card-jargao'><span class='texto-pista'>{g}</span></div>", unsafe_allow_html=True)
