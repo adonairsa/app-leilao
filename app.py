@@ -15,47 +15,18 @@ st.set_page_config(
     }
 )
 
-# ==================== ESCONDER MENU E RODAPÉ ====================
-st.markdown("""
+# ==================== CSS (TUDO EM UMA STRING) ====================
+css_code = """
 <style>
-    #MainMenu {
-        visibility: hidden;
-        display: none;
-    }
-    
-    footer {
-        visibility: hidden;
-        display: none;
-    }
-    
-    [data-testid="stToolbar"] {
-        display: none;
-    }
-    
-    [data-testid="stDecoration"] {
-        display: none;
-    }
-    
-    .viewerBadge_container__1QSob {
-        display: none !important;
-    }
-    
-    a[href*="streamlit"] {
-        display: none !important;
-    }
-    
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 0rem;
-    }
-    
-    header[data-testid="stHeader"] {
-        display: none;
-    }
-    
-    .main {
-        padding: 0;
-    }
+    #MainMenu {visibility: hidden; display: none;}
+    footer {visibility: hidden; display: none;}
+    [data-testid="stToolbar"] {display: none;}
+    [data-testid="stDecoration"] {display: none;}
+    .viewerBadge_container__1QSob {display: none !important;}
+    a[href*="streamlit"] {display: none !important;}
+    .block-container {padding-top: 1rem; padding-bottom: 0rem;}
+    header[data-testid="stHeader"] {display: none;}
+    .main {padding: 0;}
     
     .lote-destaque {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -179,7 +150,9 @@ st.markdown("""
         touch-action: manipulation;
     }
 </style>
-""", unsafe_allow_html=True)
+"""
+
+st.markdown(css_code, unsafe_allow_html=True)
 
 # ==================== PROCESSAMENTO DE PDF ====================
 @st.cache_data(ttl=7200, show_spinner=False)
@@ -403,66 +376,36 @@ def extrair_genealogia(texto_cat, num_lote):
                         m = re.search(r"PAI\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
                         if m and m.group(1).strip():
                             genealogia["pai"] = m.group(1).strip()
-                        else:
-                            for j in range(idx + 1, min(idx + 3, len(bloco))):
-                                if bloco[j].strip() and not re.search(r":", bloco[j]):
-                                    genealogia["pai"] = bloco[j].strip()
-                                    break
                     
-                    # MÃE
-                    if re.search(r"\bMÃE\s*:|\bMAE\s*:", linha_limpa_bloco, re.IGNORECASE):
-                        m = re.search(r"(?:MÃE|MAE)\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
+                    # MAE
+                    if re.search(r"\bMAE\s*:|\bMÃE\s*:", linha_limpa_bloco, re.IGNORECASE):
+                        m = re.search(r"(?:MAE|MÃE)\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
                         if m and m.group(1).strip():
                             genealogia["mae"] = m.group(1).strip()
-                        else:
-                            for j in range(idx + 1, min(idx + 3, len(bloco))):
-                                if bloco[j].strip() and not re.search(r":", bloco[j]):
-                                    genealogia["mae"] = bloco[j].strip()
-                                    break
                     
-                    # AVÔ PATERNO
-                    if re.search(r"\bAVÔ\s+PATERNO\s*:|\bAVO\s+PATERNO\s*:", linha_limpa_bloco, re.IGNORECASE):
-                        m = re.search(r"(?:AVÔ|AVO)\s+PATERNO\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
+                    # AVO PATERNO
+                    if re.search(r"\bAVO\s+PATERNO\s*:|\bAVÔ\s+PATERNO\s*:", linha_limpa_bloco, re.IGNORECASE):
+                        m = re.search(r"(?:AVO|AVÔ)\s+PATERNO\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
                         if m and m.group(1).strip():
                             genealogia["avo_paterno"] = m.group(1).strip()
-                        else:
-                            for j in range(idx + 1, min(idx + 3, len(bloco))):
-                                if bloco[j].strip() and not re.search(r":", bloco[j]):
-                                    genealogia["avo_paterno"] = bloco[j].strip()
-                                    break
                     
-                    # AVÓ PATERNA
-                    if re.search(r"\bAVÓ\s+PATERNA\s*:|\bAVO\s+PATERNA\s*:", linha_limpa_bloco, re.IGNORECASE):
-                        m = re.search(r"(?:AVÓ|AVO)\s+PATERNA\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
+                    # AVO PATERNA
+                    if re.search(r"\bAVO\s+PATERNA\s*:|\bAVÓ\s+PATERNA\s*:", linha_limpa_bloco, re.IGNORECASE):
+                        m = re.search(r"(?:AVO|AVÓ)\s+PATERNA\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
                         if m and m.group(1).strip():
                             genealogia["avo_paterna"] = m.group(1).strip()
-                        else:
-                            for j in range(idx + 1, min(idx + 3, len(bloco))):
-                                if bloco[j].strip() and not re.search(r":", bloco[j]):
-                                    genealogia["avo_paterna"] = bloco[j].strip()
-                                    break
                     
-                    # AVÔ MATERNO
-                    if re.search(r"\bAVÔ\s+MATERNO\s*:|\bAVO\s+MATERNO\s*:", linha_limpa_bloco, re.IGNORECASE):
-                        m = re.search(r"(?:AVÔ|AVO)\s+MATERNO\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
+                    # AVO MATERNO
+                    if re.search(r"\bAVO\s+MATERNO\s*:|\bAVÔ\s+MATERNO\s*:", linha_limpa_bloco, re.IGNORECASE):
+                        m = re.search(r"(?:AVO|AVÔ)\s+MATERNO\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
                         if m and m.group(1).strip():
                             genealogia["avo_materno"] = m.group(1).strip()
-                        else:
-                            for j in range(idx + 1, min(idx + 3, len(bloco))):
-                                if bloco[j].strip() and not re.search(r":", bloco[j]):
-                                    genealogia["avo_materno"] = bloco[j].strip()
-                                    break
                     
-                    # AVÓ MATERNA
-                    if re.search(r"\bAVÓ\s+MATERNA\s*:|\bAVO\s+MATERNA\s*:", linha_limpa_bloco, re.IGNORECASE):
-                        m = re.search(r"(?:AVÓ|AVO)\s+MATERNA\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
+                    # AVO MATERNA
+                    if re.search(r"\bAVO\s+MATERNA\s*:|\bAVÓ\s+MATERNA\s*:", linha_limpa_bloco, re.IGNORECASE):
+                        m = re.search(r"(?:AVO|AVÓ)\s+MATERNA\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
                         if m and m.group(1).strip():
                             genealogia["avo_materna"] = m.group(1).strip()
-                        else:
-                            for j in range(idx + 1, min(idx + 3, len(bloco))):
-                                if bloco[j].strip() and not re.search(r":", bloco[j]):
-                                    genealogia["avo_materna"] = bloco[j].strip()
-                                    break
                     
                     # Informações de reprodução
                     if "inseminada" in linha_lower:
@@ -509,51 +452,51 @@ def gerar_gatilhos(dados_lote, genealogia=None):
     
     if "touro" in categoria or "touro" in produto:
         gatilhos.extend([
-            "TOURO MELHORADOR: Genética superior para revolucionar seu rebanho!",
-            "GANHO DE PESO: Bezerros pesados e precoces na desmama!"
+            "TOURO MELHORADOR: Genética superior!",
+            "GANHO DE PESO: Bezerros pesados!"
         ])
     
     if "vaca" in categoria or "matriz" in produto:
         gatilhos.extend([
-            "MATRIZ: Habilidade materna comprovada!",
+            "MATRIZ: Habilidade materna!",
             "PRODUÇÃO: Excelente produtividade!"
         ])
     
     if "novilha" in categoria:
         gatilhos.extend([
-            "NOVILHA: Futuro da pecuária, genética promissora!",
+            "NOVILHA: Futuro da pecuária!",
             "PRECOCIDADE: Pronta para reprodução!"
         ])
     
     if "bezerra" in categoria or "bezerro" in categoria:
         gatilhos.extend([
-            "BEZERRA: Genética de elite, futuro garantido!",
-            "INVESTIMENTO: Base para um rebanho superior!"
+            "BEZERRA: Genética de elite!",
+            "INVESTIMENTO: Base para rebanho superior!"
         ])
     
     if "nelore" in raca:
-        gatilhos.append("NELORE: Raça que domina o mercado brasileiro!")
+        gatilhos.append("NELORE: Raça dominante no mercado!")
     
     if "angus" in raca:
-        gatilhos.append("ANGUS: Carne premium, maciez garantida!")
+        gatilhos.append("ANGUS: Carne premium!")
     
     if genealogia:
         if genealogia.get("pai") and genealogia.get("mae"):
-            gatilhos.append(f"PEDIGREE: {genealogia['pai']} x {genealogia['mae']} - Cruzamento de elite!")
+            gatilhos.append(f"PEDIGREE: {genealogia['pai']} x {genealogia['mae']}!")
         elif genealogia.get("pai"):
-            gatilhos.append(f"FILHO DE: {genealogia['pai']} - Linhagem consagrada!")
+            gatilhos.append(f"FILHO DE: {genealogia['pai']}!")
     
     gatilhos.extend([
-        "QUALIDADE: Animal selecionado a dedo!",
+        "QUALIDADE: Animal selecionado!",
         "PROCEDÊNCIA: Origem garantida!",
         "OPORTUNIDADE: Preço imperdível!"
     ])
     
     if dados_lote.get("peso"):
-        gatilhos.append(f"PESO: {dados_lote['peso']} de pura produtividade!")
+        gatilhos.append(f"PESO: {dados_lote['peso']}!")
     
     if dados_lote.get("idade"):
-        gatilhos.append(f"IDADE: {dados_lote['idade']} - Fase perfeita!")
+        gatilhos.append(f"IDADE: {dados_lote['idade']}!")
     
     return gatilhos[:8]
 
@@ -614,24 +557,6 @@ else:
 # Extrair dados
 sequencia_oe, mapa_oe = extrair_dados_oe(texto_oe_tuple)
 
-# Debug
-if hasattr(st.session_state, 'mostrar_debug') and st.session_state.mostrar_debug:
-    with st.expander("DEBUG", expanded=True):
-        st.write(f"Total de páginas O.E.: {len(texto_oe)}")
-        st.write(f"Total de lotes extraídos: {len(sequencia_oe)}")
-        
-        if sequencia_oe:
-            st.write(f"Primeiros 20 lotes: {sequencia_oe[:20]}")
-        
-        if texto_oe:
-            st.write("Primeiras linhas da O.E.:")
-            for i, pagina in enumerate(texto_oe[:2]):
-                linhas = pagina.split('\n')
-                st.markdown(f"**Página {i+1}:**")
-                for linha in linhas[:15]:
-                    if linha.strip():
-                        st.code(linha)
-
 # Definir lista de lotes
 if sequencia_oe:
     if modo_ordenacao == "ORDEM DE ENTRADA":
@@ -644,7 +569,6 @@ else:
     lista_lotes = []
     ordem_atual = "NENHUM LOTE ENCONTRADO"
 
-# Estado da sessão
 if 'lote_idx' not in st.session_state:
     st.session_state.lote_idx = 0
 
@@ -655,7 +579,7 @@ if not lista_lotes:
 if st.session_state.lote_idx >= len(lista_lotes):
     st.session_state.lote_idx = 0
 
-# ==================== NAVEGAÇÃO ====================
+# Navegação
 ordem_texto = f"{ordem_atual} | Lote {st.session_state.lote_idx + 1} de {len(lista_lotes)}"
 st.markdown(f'<div class="ordem-indicador">{ordem_texto}</div>', unsafe_allow_html=True)
 
@@ -667,7 +591,7 @@ with col_prev:
         st.rerun()
 
 with col_next:
-    if st.button("PRÓXIMO", use_container_width=True, key="next_btn"):
+    if st.button("PROXIMO", use_container_width=True, key="next_btn"):
         st.session_state.lote_idx = min(len(lista_lotes) - 1, st.session_state.lote_idx + 1)
         st.rerun()
 
@@ -683,12 +607,12 @@ num_lote = lista_lotes[st.session_state.lote_idx]
 dados_lote = mapa_oe.get(num_lote, {})
 genealogia = extrair_genealogia(texto_cat, num_lote) if texto_cat else {}
 
-# ==================== PAINEL PRINCIPAL ====================
+# Painel principal
 lote_texto = f"LOTE {num_lote}"
 posicao_texto = dados_lote.get("posicao", f"{st.session_state.lote_idx + 1}º")
 st.markdown(f'<div class="lote-destaque">{lote_texto}<br><span style="font-size: 24px;">{posicao_texto} A ENTRAR</span></div>', unsafe_allow_html=True)
 
-# Porcentagem de venda
+# Porcentagem
 if dados_lote.get("porcentagem_venda"):
     pct_texto = f"VENDA DE {dados_lote['porcentagem_venda']} DO ANIMAL"
     st.markdown(f'<div class="porcentagem-box">{pct_texto}</div>', unsafe_allow_html=True)
@@ -698,18 +622,12 @@ if dados_lote.get("nome_animal"):
     nome_texto = dados_lote["nome_animal"]
     st.markdown(f'<div class="nome-animal-box">🐂 {nome_texto}</div>', unsafe_allow_html=True)
 
-# Informações de reprodução
+# Reprodução
 if dados_lote.get("info_reproducao"):
     repro_texto = dados_lote["info_reproducao"]
     if dados_lote.get("tipo_reproducao") == "prenhez":
         st.markdown(f'<div class="prenhez-box">{repro_texto}</div>', unsafe_allow_html=True)
     elif dados_lote.get("tipo_reproducao") == "inseminacao":
-        st.markdown(f'<div class="inseminacao-box">{repro_texto}</div>', unsafe_allow_html=True)
-elif genealogia.get("info_reproducao"):
-    repro_texto = genealogia["info_reproducao"]
-    if "prenhe" in repro_texto.lower():
-        st.markdown(f'<div class="prenhez-box">{repro_texto}</div>', unsafe_allow_html=True)
-    elif "inseminada" in repro_texto.lower():
         st.markdown(f'<div class="inseminacao-box">{repro_texto}</div>', unsafe_allow_html=True)
 
 if dados_lote:
@@ -719,10 +637,10 @@ if dados_lote:
         st.markdown("### DADOS DO ANIMAL")
         cat_texto = dados_lote.get("categoria", "-")
         raca_texto = dados_lote.get("raca", "-")
-        st.markdown(f'<div class="animal-info"><strong>CATEGORIA:</strong><br>{cat_texto}<br><br><strong>RAÇA:</strong><br>{raca_texto}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="animal-info"><strong>CATEGORIA:</strong><br>{cat_texto}<br><br><strong>RACA:</strong><br>{raca_texto}</div>', unsafe_allow_html=True)
     
     with col2:
-        st.markdown("### CARACTERÍSTICAS")
+        st.markdown("### CARACTERISTICAS")
         peso_texto = dados_lote.get("peso", "-")
         idade_texto = dados_lote.get("idade", "-")
         st.markdown(f'<div class="animal-info"><strong>PESO:</strong><br>{peso_texto}<br><br><strong>IDADE:</strong><br>{idade_texto}</div>', unsafe_allow_html=True)
@@ -749,27 +667,42 @@ if genealogia:
             pai_texto = genealogia["pai"]
             st.markdown(f'<div class="pai-box"><strong>PAI:</strong><br>{pai_texto}</div>', unsafe_allow_html=True)
         
-        col_avo_p, col_avo_p2 = st.columns(2)
-        with col_avo_p:
+        col_avo_p1, col_avo_p2 = st.columns(2)
+        with col_avo_p1:
             if genealogia.get("avo_paterno"):
-                avo_p_texto = genealogia["avo_paterno"]
-                st.markdown(f'<div class="avo-paterno-box"><strong>AVÔ PATERNO:</strong><br>{avo_p_texto}</div>', unsafe_allow_html=True)
+                avo_texto = genealogia["avo_paterno"]
+                st.markdown(f'<div class="avo-paterno-box"><strong>AVO PATERNO:</strong><br>{avo_texto}</div>', unsafe_allow_html=True)
         with col_avo_p2:
             if genealogia.get("avo_paterna"):
-                avo_p2_texto = genealogia["avo_paterna"]
-                st.markdown(f'<div class="avo-paterno-box"><strong>AVÓ PATERNA:</strong><br>{avo_p2_texto}</div>', unsafe_allow_html=True)
+                avo_texto2 = genealogia["avo_paterna"]
+                st.markdown(f'<div class="avo-paterno-box"><strong>AVO PATERNA:</strong><br>{avo_texto2}</div>', unsafe_allow_html=True)
     
     with col_mae:
         if genealogia.get("mae"):
             mae_texto = genealogia["mae"]
-            st.markdown(f'<div class="mae-box"><strong>MÃE:</strong><br>{mae_texto}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="mae-box"><strong>MAE:</strong><br>{mae_texto}</div>', unsafe_allow_html=True)
         
-        col_avo_m, col_avo_m2 = st.columns(2)
-        with col_avo_m:
+        col_avo_m1, col_avo_m2 = st.columns(2)
+        with col_avo_m1:
             if genealogia.get("avo_materno"):
-                avo_m_texto = genealogia["avo_materno"]
-                st.markdown(f'<div class="avo-materno-box"><strong>AVÔ MATERNO:</strong><br>{avo_m_texto}</div>', unsafe_allow_html=True)
+                avo_texto3 = genealogia["avo_materno"]
+                st.markdown(f'<div class="avo-materno-box"><strong>AVO MATERNO:</strong><br>{avo_texto3}</div>', unsafe_allow_html=True)
         with col_avo_m2:
             if genealogia.get("avo_materna"):
-                avo_m2_texto = genealogia["avo_materna"]
-                st.markdown(f'<div
+                avo_texto4 = genealogia["avo_materna"]
+                st.markdown(f'<div class="avo-materno-box"><strong>AVO MATERNA:</strong><br>{avo_texto4}</div>', unsafe_allow_html=True)
+
+# Linha completa
+if dados_lote:
+    with st.expander("Ver linha completa da O.E."):
+        st.code(dados_lote.get("linha_completa", "-"))
+
+# Gatilhos
+st.markdown("### GATILHOS PARA CANTAR")
+gatilhos = gerar_gatilhos(dados_lote, genealogia)
+
+for gatilho in gatilhos:
+    st.markdown(f'<div class="gatilho-card">{gatilho}</div>', unsafe_allow_html=True)
+
+st.markdown("---")
+st.markdown(f"**Total de lotes: {len(lista_lotes)}**")
