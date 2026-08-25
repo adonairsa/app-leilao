@@ -1,18 +1,18 @@
 import streamlit as st
 import pdfplumber
 import re
+import json
+import base64
+import os
 from io import BytesIO
+from openai import OpenAI
 
 st.set_page_config(
     page_title="PAINEL DO LEILOEIRO PRO",
     page_icon="🐂",
     layout="wide",
     initial_sidebar_state="collapsed",
-    menu_items={
-        'Get Help': None,
-        'Report a bug': None,
-        'About': None
-    }
+    menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
 )
 
 # ==================== CSS ====================
@@ -84,7 +84,7 @@ css_code = """
         padding: 15px;
         border-radius: 10px;
         margin: 5px 0;
-        font-size: 18px;
+        font-size: 20px;
         font-weight: bold;
     }
     .mae-box {
@@ -93,7 +93,7 @@ css_code = """
         padding: 15px;
         border-radius: 10px;
         margin: 5px 0;
-        font-size: 18px;
+        font-size: 20px;
         font-weight: bold;
     }
     .avo-paterno-box {
@@ -174,44 +174,24 @@ def processar_pdf(file_bytes):
         return paginas
     try:
         with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-            total_paginas = len(pdf.pages)
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            for i, page in enumerate(pdf.pages):
-                progress = (i + 1) / total_paginas
-                progress_bar.progress(progress)
-                status_text.text(f"Lendo página {i+1} de {total_paginas}...")
-                
-                texto = None
-                try:
-                    texto = page.extract_text(layout=True)
-                except:
-                    pass
-                
-                if not texto:
-                    try:
-                        texto = page.extract_text()
-                    except:
-                        pass
-                
+            for page in pdf.pages:
+                texto = page.extract_text(layout=True) or page.extract_text()
                 if texto:
                     paginas.append(texto)
-            
-            progress_bar.empty()
-            status_text.empty()
     except Exception as e:
         st.error(f"Erro ao processar PDF: {str(e)}")
     return paginas
 
 @st.cache_data(show_spinner=False)
-def renderizar_pagina_imagem(file_bytes, num_pagina):
+def obter_imagem_bytes_pagina(file_bytes, num_pagina):
     try:
         with pdfplumber.open(BytesIO(file_bytes)) as pdf:
             if 0 <= num_pagina < len(pdf.pages):
-                page = pdf.pages[num_pagina]
-                return page.to_image(resolution=150).original
-    except Exception as e:
+                img = pdf.pages[num_pagina].to_image(resolution=150).original
+                buffer = BytesIO()
+                img.save(buffer, format="JPEG")
+                return buffer.getvalue()
+    except:
         return None
     return None
 
@@ -234,8 +214,7 @@ def extrair_dados_oe(texto_oe_tuple):
         return sequencia, dados_por_lote
     
     for pagina in texto_oe:
-        linhas = pagina.split('\n')
-        for linha in linhas:
+        for linha in pagina.split('\n'):
             linha_limpa = linha.strip()
             if not linha_limpa or re.search(r"QTD\s+IDADE\s+PESO", linha_limpa, re.IGNORECASE) or re.search(r"O\.E\.\s*LT", linha_limpa, re.IGNORECASE):
                 continue
@@ -303,89 +282,77 @@ def extrair_dados_oe(texto_oe_tuple):
                     dados_por_lote[lt_num] = dados
     return sequencia, dados_por_lote
 
-# ==================== EXTRAÇÃO ESPACIAL DE GENEALOGIA (CORRIGIDA) ====================
+# ==================== VISÃO COMPUTACIONAL COM OPENAI (GPT-4o) ====================
 @st.cache_data(show_spinner=False)
-def extrair_genealogia_espacial(file_bytes, num_pagina):
+def extrair_genealogia_visiao_ia(img_bytes, num_lote):
     genealogia = {
         "pai": "", "mae": "",
         "avo_paterno": "", "avo_paterna": "",
         "avo_materno": "", "avo_materna": ""
     }
-    if not file_bytes or num_pagina < 0:
+    
+    # Busca a chave configurada no secrets.toml do Streamlit
+    api_key = None
+    try:
+        api_key = st.secrets["OPENAI_API_KEY"]
+    except:
+        api_key = os.environ.get("OPENAI_API_KEY", None)
+
+    if not api_key or not img_bytes:
         return genealogia
 
     try:
-        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-            if num_pagina >= len(pdf.pages):
-                return genealogia
-            page = pdf.pages[num_pagina]
-            width = page.width
-            height = page.height
-            mid_x = width / 2.0
+        client = OpenAI(api_key=api_key)
+        base64_image = base64.b64encode(img_bytes).decode('utf-8')
 
-            words = page.extract_words()
-            
-            # Extrai apenas palavras dentro do retângulo do pedigree (28% a 82% da altura)
-            pedigree_words = [
-                w for w in words 
-                if height * 0.28 <= w['top'] <= height * 0.82
-                and not any(k in w['text'].upper() for k in ["PESO", "PONDERAL", "INSEMINADA", "PRENHE", "PARIDA", "PREV.", "FAZENDA", "TERRA"])
-            ]
-            
-            if not pedigree_words:
-                return genealogia
+        prompt = f"""
+        Analise visualmente a imagem desta folha de catálogo de leilão do LOTE {num_lote}.
+        Localize a Árvore Genealógica (Pedigree) do animal e extraia com precisão visual:
 
-            min_y = min(w['top'] for w in pedigree_words)
-            max_y = max(w['bottom'] for w in pedigree_words)
-            h_pedigree = max_y - min_y
-            
-            if h_pedigree <= 0:
-                return genealogia
+        - LINHAGEM PATERNA (Lado Esquerdo):
+          * pai: Nome completo do Pai (Banner dourado/destaque da esquerda)
+          * avo_paterno: Nome completo do Avô Paterno (acima do pai)
+          * avo_paterna: Nome completo da Avó Paterna (abaixo do pai)
 
-            # Divisão Estrita: Esquerda (Linha Paterna) e Direita (Linha Materna)
-            left_words = [w for w in pedigree_words if w['x1'] <= mid_x + 5]
-            right_words = [w for w in pedigree_words if w['x0'] >= mid_x - 5]
+        - LINHAGEM MATERNA (Lado Direito):
+          * mae: Nome completo da Mãe (Banner dourado/destaque da direita)
+          * avo_materno: Nome completo do Avô Materno (acima da mãe)
+          * avo_materna: Nome completo da Avó Materna (abaixo da mãe)
 
-            def extrair_texto_faixa(words_list, y_min_pct, y_max_pct):
-                target_words = [
-                    w for w in words_list 
-                    if min_y + h_pedigree * y_min_pct <= w['top'] <= min_y + h_pedigree * y_max_pct
-                ]
-                if not target_words:
-                    return ""
-                
-                target_words.sort(key=lambda w: (round(w['top'] / 7), w['x0']))
-                
-                linhas = []
-                linha_atual = []
-                last_top = None
-                
-                for w in target_words:
-                    if last_top is None or abs(w['top'] - last_top) < 7:
-                        linha_atual.append(w['text'])
-                    else:
-                        linhas.append(" ".join(linha_atual))
-                        linha_atual = [w['text']]
-                    last_top = w['top']
-                if linha_atual:
-                    linhas.append(" ".join(linha_atual))
-                
-                return " ".join(linhas).strip()
+        Retorne ESTRITAMENTE um JSON válido com a seguinte estrutura de chaves:
+        {{
+            "pai": "...",
+            "mae": "...",
+            "avo_paterno": "...",
+            "avo_paterna": "...",
+            "avo_materno": "...",
+            "avo_materna": "..."
+        }}
+        """
 
-            # LADO PATERNO (ESQUERDA)
-            genealogia["avo_paterno"] = extrair_texto_faixa(left_words, 0.10, 0.35)
-            genealogia["pai"] = extrair_texto_faixa(left_words, 0.35, 0.65)
-            genealogia["avo_paterna"] = extrair_texto_faixa(left_words, 0.65, 0.90)
-
-            # LADO MATERNO (DIREITA)
-            genealogia["avo_materno"] = extrair_texto_faixa(right_words, 0.10, 0.35)
-            genealogia["mae"] = extrair_texto_faixa(right_words, 0.35, 0.65)
-            genealogia["avo_materna"] = extrair_texto_faixa(right_words, 0.65, 0.90)
-
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            },
+                        },
+                    ],
+                }
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.0
+        )
+        data = json.loads(response.choices[0].message.content)
+        return data
     except Exception as e:
-        pass
-
-    return genealogia
+        return genealogia
 
 # ==================== GATILHOS ====================
 def gerar_gatilhos(dados_lote, genealogia=None):
@@ -466,10 +433,13 @@ st.session_state.lote_idx = lista_lotes.index(lote_selecionado)
 num_lote = lista_lotes[st.session_state.lote_idx]
 dados_lote = mapa_oe.get(num_lote, {})
 
-pagina_catalogo, texto_pagina_catalogo = encontrar_pagina_catalogo(tuple(texto_cat), num_lote) if texto_cat and mostrar_preview else (-1, "")
+pagina_catalogo, _ = encontrar_pagina_catalogo(tuple(texto_cat), num_lote) if texto_cat and mostrar_preview else (-1, "")
 
-# EXTRAÇÃO ESPACIAL DE GENEALOGIA
-genealogia = extrair_genealogia_espacial(file_cat.getvalue(), pagina_catalogo) if (file_cat and pagina_catalogo >= 0) else {}
+# OBTÉM OS BYTES DA IMAGEM DA PÁGINA DO CATÁLOGO
+img_pagina_bytes = obter_imagem_bytes_pagina(file_cat.getvalue(), pagina_catalogo) if (file_cat and pagina_catalogo >= 0) else None
+
+# EXTRAÇÃO VISUAL VIA OPENAI (GPT-4o-mini Vision)
+genealogia = extrair_genealogia_visiao_ia(img_pagina_bytes, num_lote) if img_pagina_bytes else {}
 
 # LAYOUT PRINCIPAL
 col_esquerda, col_direita = st.columns([1, 1])
@@ -499,10 +469,10 @@ with col_esquerda:
         with c3:
             st.markdown(f'<div class="animal-info"><strong>QTD:</strong><br>{dados_lote.get("qtd","-")}<br><br><strong>VENDEDOR:</strong><br>{dados_lote.get("vendedor","-")}</div>', unsafe_allow_html=True)
     
-    # GENEALOGIA EXTRAÍDA DE FORMA ESPACIAL
+    # GENEALOGIA EXTRAÍDA PELA IA VISUAL
     has_gen = any(v for v in genealogia.values())
     if has_gen:
-        st.markdown("### 🧬 GENEALOGIA")
+        st.markdown("### 🧬 GENEALOGIA (EXTRAÇÃO VISUAL POR IA)")
         col_pai, col_mae = st.columns(2)
         
         with col_pai:
@@ -534,13 +504,9 @@ with col_esquerda:
 
 # COLUNA DIREITA (PREVIEW VISUAL DO CATÁLOGO)
 with col_direita:
-    if mostrar_preview and file_cat and pagina_catalogo >= 0:
+    if mostrar_preview and img_pagina_bytes:
         st.markdown(f'<div class="catalogo-header">📖 CATÁLOGO VISUAL - PÁGINA {pagina_catalogo + 1}</div>', unsafe_allow_html=True)
-        img_pagina = renderizar_pagina_imagem(file_cat.getvalue(), pagina_catalogo)
-        if img_pagina:
-            st.image(img_pagina, use_container_width=True)
-        else:
-            st.info("Não foi possível gerar a foto desta página.")
+        st.image(img_pagina_bytes, use_container_width=True)
     elif mostrar_preview and file_cat:
         st.info("Lote não localizado na busca visual do catálogo.")
     elif mostrar_preview and not file_cat:
