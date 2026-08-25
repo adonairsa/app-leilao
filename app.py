@@ -14,7 +14,7 @@ st.set_page_config(
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
 )
 
-# ==================== CSS COM ALTO CONTRASTE ====================
+# ==================== CSS COM BANNERS DE ALTO IMPACTO ====================
 css_code = """
 <style>
     #MainMenu {visibility: hidden; display: none;}
@@ -28,114 +28,117 @@ css_code = """
     .main {padding: 0;}
     
     .lote-destaque {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
         color: white;
-        padding: 25px;
-        border-radius: 20px;
+        padding: 20px;
+        border-radius: 18px;
         text-align: center;
-        font-size: 55px;
+        font-size: 52px;
         font-weight: bold;
-        margin: 15px 0;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        margin-bottom: 12px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.3);
     }
     .ordem-indicador {
-        background: #4CAF50;
-        color: white;
-        padding: 15px;
-        border-radius: 12px;
-        text-align: center;
-        font-weight: bold;
-        margin: 10px 0;
-        font-size: 22px;
-    }
-    .animal-info {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 15px;
-        margin: 10px 0;
-    }
-    .prenhez-box {
-        background: linear-gradient(135deg, #FF6B6B 0%, #FF4757 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 15px;
-        margin: 15px 0;
-        font-size: 22px;
-        font-weight: bold;
-        text-align: center;
-        border: 3px solid #FF0000;
-    }
-    .inseminacao-box {
-        background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 15px;
-        margin: 15px 0;
-        font-size: 22px;
-        font-weight: bold;
-        text-align: center;
-        border: 3px solid #FF9800;
-    }
-    .porcentagem-box {
-        background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-        color: #333;
-        padding: 20px;
-        border-radius: 15px;
-        margin: 15px 0;
-        font-size: 26px;
-        font-weight: bold;
-        text-align: center;
-        border: 3px solid #FFD700;
-    }
-    .nome-animal-box {
-        background: linear-gradient(135deg, #00BCD4 0%, #0097A7 100%);
-        color: white;
-        padding: 15px;
-        border-radius: 10px;
-        margin: 5px 0;
-        font-size: 20px;
-        font-weight: bold;
-        text-align: center;
-    }
-    .ai-consideracoes-box {
-        background-color: #1E1B4B !important;
-        padding: 20px;
-        border-radius: 15px;
-        margin: 15px 0;
-        border-left: 8px solid #818CF8;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    .ai-consideracoes-box, .ai-consideracoes-box * {
-        color: #FFFFFF !important;
-        font-size: 16px !important;
-        line-height: 1.6 !important;
-    }
-    .gatilho-card {
-        background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
-        color: white;
-        padding: 18px;
-        border-radius: 15px;
-        font-size: 18px;
-        margin: 10px 0;
-        font-weight: bold;
-    }
-    .stButton > button {
-        min-height: 60px;
-        font-size: 20px;
-        border-radius: 15px;
-        margin: 5px 0;
-        touch-action: manipulation;
-    }
-    .catalogo-header {
-        background: #FF9800;
+        background: #16A34A;
         color: white;
         padding: 12px;
         border-radius: 10px;
         text-align: center;
         font-weight: bold;
+        margin: 8px 0;
         font-size: 20px;
-        margin-bottom: 10px;
+    }
+    
+    /* BANNERS PRINCIPAIS DE REPRODUÇÃO E VENDA (TOPO) */
+    .banner-prenhez {
+        background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%);
+        color: #FFFFFF !important;
+        padding: 18px;
+        border-radius: 14px;
+        margin-bottom: 12px;
+        font-size: 24px !important;
+        font-weight: 900 !important;
+        text-align: center;
+        border: 3px solid #EF4444;
+        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+    }
+    .banner-inseminacao {
+        background: linear-gradient(135deg, #D97706 0%, #92400E 100%);
+        color: #FFFFFF !important;
+        padding: 18px;
+        border-radius: 14px;
+        margin-bottom: 12px;
+        font-size: 24px !important;
+        font-weight: 900 !important;
+        text-align: center;
+        border: 3px solid #F59E0B;
+        box-shadow: 0 4px 15px rgba(217, 119, 6, 0.4);
+    }
+    .banner-venda {
+        background: linear-gradient(135deg, #EAB308 0%, #CA8A04 100%);
+        color: #000000 !important;
+        padding: 16px;
+        border-radius: 14px;
+        margin-bottom: 12px;
+        font-size: 26px !important;
+        font-weight: 900 !important;
+        text-align: center;
+        border: 3px solid #FACC15;
+    }
+    
+    .animal-info {
+        background: #1E293B;
+        color: white;
+        padding: 15px;
+        border-radius: 12px;
+        margin: 5px 0;
+        border: 1px solid #334155;
+    }
+    .nome-animal-box {
+        background: #0284C7;
+        color: white;
+        padding: 14px;
+        border-radius: 12px;
+        margin-bottom: 12px;
+        font-size: 22px;
+        font-weight: bold;
+        text-align: center;
+    }
+    
+    /* CARDS RÁPIDOS DA IA */
+    .ai-card {
+        background: linear-gradient(135deg, #312E81 0%, #1E1B4B 100%);
+        color: #FFFFFF !important;
+        padding: 14px 18px;
+        border-radius: 12px;
+        margin: 8px 0;
+        border-left: 6px solid #6366F1;
+        font-size: 18px !important;
+        font-weight: bold !important;
+    }
+
+    .gatilho-card {
+        background: linear-gradient(90deg, #EC4899 0%, #8B5CF6 100%);
+        color: white;
+        padding: 14px;
+        border-radius: 12px;
+        font-size: 18px;
+        margin: 6px 0;
+        font-weight: bold;
+    }
+    .stButton > button {
+        min-height: 55px;
+        font-size: 20px;
+        border-radius: 12px;
+    }
+    .catalogo-header {
+        background: #F59E0B;
+        color: white;
+        padding: 10px;
+        border-radius: 10px;
+        text-align: center;
+        font-weight: bold;
+        font-size: 18px;
     }
 </style>
 """
@@ -190,7 +193,7 @@ def encontrar_pagina_catalogo(texto_cat_tuple, num_lote):
             return idx, pagina
     return -1, ""
 
-# ==================== EXTRAÇÃO DA ORDEM DE ENTRADA ====================
+# ==================== EXTRAÇÃO REFORÇADA DA ORDEM DE ENTRADA ====================
 @st.cache_data
 def extrair_dados_oe(texto_oe_tuple):
     texto_oe = list(texto_oe_tuple)
@@ -227,25 +230,27 @@ def extrair_dados_oe(texto_oe_tuple):
                         "linha_completa": linha_limpa
                     }
                     
+                    # Porcentagem de Venda
                     m_porcentagem = re.search(r"(\d+%)\s*de:\s*(.+)", linha_limpa, re.IGNORECASE)
                     if m_porcentagem:
                         dados["porcentagem_venda"] = m_porcentagem.group(1)
                         dados["nome_animal"] = m_porcentagem.group(2).strip()
                     
+                    # Captura Reforçada de Reprodução (Inseminada / Prenhe)
                     linha_lower = linha_limpa.lower()
                     if "inseminada" in linha_lower:
-                        m_insem = re.search(r"inseminada\s+(?:do|de)\s+([^|]+)", linha_limpa, re.IGNORECASE)
-                        dados["info_reproducao"] = f"Inseminada do {m_insem.group(1).strip()}" if m_insem else linha_limpa
+                        m_insem = re.search(r"inseminada\s+(?:do|de)?\s*([^|]+)", linha_limpa, re.IGNORECASE)
+                        dados["info_reproducao"] = f"INSEMINADA DO {m_insem.group(1).strip()}" if m_insem else "INSEMINADA"
                         dados["tipo_reproducao"] = "inseminacao"
                     
                     if "prenhe" in linha_lower or "prenha" in linha_lower:
-                        m_prenhe = re.search(r"prenhe\s+(?:do|de)\s+([^|]+?)(?:\s*\.\s*prev\.?\s*de\s*parto:?\s*([^|]+))?", linha_limpa, re.IGNORECASE)
+                        m_prenhe = re.search(r"prenhe\s+(?:do|de)?\s*([^|]+?)(?:\s*\.\s*prev\.?\s*de\s*parto:?\s*([^|]+))?", linha_limpa, re.IGNORECASE)
                         if m_prenhe:
-                            dados["info_reproducao"] = f"Prenhe do {m_prenhe.group(1).strip()}"
+                            dados["info_reproducao"] = f"PRENHE DO {m_prenhe.group(1).strip()}"
                             if m_prenhe.group(2):
-                                dados["info_reproducao"] += f" - Prev. parto: {m_prenhe.group(2).strip()}"
+                                dados["info_reproducao"] += f" (PARTO: {m_prenhe.group(2).strip()})"
                         else:
-                            dados["info_reproducao"] = linha_limpa
+                            dados["info_reproducao"] = "PRENHE"
                         dados["tipo_reproducao"] = "prenhez"
                     
                     if len(parts) >= 1: dados["qtd"] = parts[0]
@@ -269,90 +274,52 @@ def extrair_dados_oe(texto_oe_tuple):
                     dados_por_lote[lt_num] = dados
     return sequencia, dados_por_lote
 
-# ==================== DESCOBERTA DINÂMICA DE MODELOS E ANÁLISE ====================
+# ==================== ANÁLISE OBJETIVA DA IA (CARDS RÁPIDOS) ====================
 @st.cache_data(show_spinner=False)
-def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, api_key):
+def analisar_lote_com_gemini_cards(img_bytes, num_lote, dados_lote, api_key):
     if not api_key:
-        return "⚠️ Chave GEMINI_API_KEY não encontrada nos Secrets do Streamlit."
-
-    api_key_clean = api_key.strip()
-
-    # 1. Consulta dinamicamente os modelos disponíveis para esta chave
-    modelo_ativo = None
-    modelos_disponiveis = []
-
-    try:
-        url_models = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key_clean}"
-        res_m = requests.get(url_models, timeout=10).json()
-        if 'models' in res_m:
-            for m in res_m['models']:
-                name = m.get('name', '')
-                methods = m.get('supportedGenerationMethods', [])
-                if 'generateContent' in methods:
-                    clean_name = name.replace('models/', '')
-                    modelos_disponiveis.append(clean_name)
-
-            # Prioriza modelos de visão rápida
-            for pref in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-pro-vision"]:
-                if pref in modelos_disponiveis:
-                    modelo_ativo = pref
-                    break
-
-            if not modelo_ativo and modelos_disponiveis:
-                modelo_ativo = modelos_disponiveis[0]
-    except:
-        pass
-
-    if not modelo_ativo:
-        # Se a listagem falhar, usa os nomes padrão
-        modelo_ativo = "gemini-1.5-flash"
+        return []
 
     base64_image = base64.b64encode(img_bytes).decode('utf-8')
 
     prompt = f"""
-    Você é um especialista zootecnista e leiloeiro de elite.
-    Analise a imagem do LOTE {num_lote} no catálogo e os dados de pista:
-    - Nome/Produto: {dados_lote.get('nome_animal') or dados_lote.get('produto', 'N/A')}
-    - Venda: {dados_lote.get('porcentagem_venda', '100%')}
-    - Reprodução/Touro: {dados_lote.get('info_reproducao', 'N/A')}
-    - Categoria/Peso: {dados_lote.get('categoria', 'N/A')} - {dados_lote.get('peso', 'N/A')}
+    Você é um leiloeiro de agronegócio em pista de alto ritmo ("jogo rápido").
+    Analise a imagem do LOTE {num_lote} no catálogo.
 
-    Forneça uma análise concisa em formato de tópicos:
-    1. 🏆 **Destaques da Linhagem & Premiações**: Raçadores e matrizes consagrados da árvore e o valor dessa genética.
-    2. 🧬 **Valorização da Reprodução**: Qualidade do touro acasalado e do ventre.
-    3. 💡 **Argumento de Pista**: 1 frase marcante de impacto para o microfone.
+    Gere EXATAMENTE 3 FRASES CURTISSIMAS (máximo 8 palavras cada) para falar no microfone.
+    - Card 1: Destaque da Linhagem/Genética (ex: "Linhagem forte em Landau e Bitelo").
+    - Card 2: Valorização da Reprodução/Ventre (ex: "Prenhez confirmada de touro provado").
+    - Card 3: Ponto forte de carcaça ou raça (ex: "Carcaça moderna e aprumos perfeitos").
+
+    Separe cada frase por uma nova linha. Não use números nem introduções.
     """
 
     payload = {
         "contents": [{
             "parts": [
                 {"text": prompt},
-                {
-                    "inline_data": {
-                        "mime_type": "image/jpeg",
-                        "data": base64_image
-                    }
-                }
+                {"inline_data": {"mime_type": "image/jpeg", "data": base64_image}}
             ]
         }]
     }
 
-    # Tenta enviar a requisição para o modelo descoberto
+    modelos = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
     headers = {"Content-Type": "application/json"}
-    
-    # Testa os dois endpoints (v1beta e v1) para o modelo escolhido
-    for ver in ["v1beta", "v1"]:
+
+    for modelo in modelos:
         try:
-            url = f"https://generativelanguage.googleapis.com/{ver}/models/{modelo_ativo}:generateContent?key={api_key_clean}"
-            response = requests.post(url, headers=headers, json=payload, timeout=25)
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key.strip()}"
+            response = requests.post(url, headers=headers, json=payload, timeout=12)
             res_json = response.json()
 
             if response.status_code == 200 and 'candidates' in res_json:
-                return res_json['candidates'][0]['content']['parts'][0]['text']
-        except Exception:
+                text = res_json['candidates'][0]['content']['parts'][0]['text']
+                linhas = [l.strip('- *123.').strip() for l in text.split('\n') if l.strip()]
+                return linhas[:3]
+        except:
             pass
 
-    return f"Não foi possível processar a imagem com o modelo ({modelo_ativo}). Modelos disponíveis para sua chave: {', '.join(modelos_disponiveis[:5]) if modelos_disponiveis else 'Nenhum retornado'}"
+    return []
 
 # ==================== GATILHOS ====================
 def gerar_gatilhos(dados_lote):
@@ -362,18 +329,16 @@ def gerar_gatilhos(dados_lote):
     
     categoria = dados_lote.get("categoria", "").lower()
     if dados_lote.get("porcentagem_venda"):
-        gatilhos.append(f"VENDA DE {dados_lote['porcentagem_venda']}!")
-    if dados_lote.get("nome_animal"):
-        gatilhos.append(f"ANIMAL: {dados_lote['nome_animal']}!")
+        gatilhos.append(f"OFERTA DE {dados_lote['porcentagem_venda']} DO LOTE!")
     if dados_lote.get("info_reproducao"):
-        gatilhos.append(f"REPRODUÇÃO: {dados_lote['info_reproducao']}")
+        gatilhos.append(f"STATUS: {dados_lote['info_reproducao']}")
     if "novilha" in categoria or "bezerra" in categoria:
         gatilhos.append("FÊMEA DE CABECEIRA E FUTURO DO REBANHO!")
     if "vaca" in categoria:
         gatilhos.append("MATRIZ COMPROVADA E PRODUTIVA!")
         
     gatilhos.extend(["PROCEDÊNCIA COMPROVADA!", "LIQUIDEZ IMEDIATA NA PISTA!"])
-    return gatilhos[:5]
+    return gatilhos[:4]
 
 # ==================== INTERFACE PRINCIPAL ====================
 st.title("PAINEL DO LEILOEIRO PRO")
@@ -438,22 +403,28 @@ img_pagina_bytes = obter_imagem_bytes_pagina(file_cat.getvalue(), pagina_catalog
 # LAYOUT PRINCIPAL
 col_esquerda, col_direita = st.columns([1, 1])
 
-# COLUNA ESQUERDA (DADOS PRINCIPAIS, CONSIDERAÇÕES DA IA E GATILHOS)
+# COLUNA ESQUERDA (IMPACTO VISUAL E RAPIDEZ)
 with col_esquerda:
     lote_texto = f"LOTE {num_lote}"
     posicao_texto = dados_lote.get("posicao", f"{st.session_state.lote_idx + 1}º")
+    
+    # 1. BANNER DO LOTE
     st.markdown(f'<div class="lote-destaque">{lote_texto}<br><span style="font-size: 24px;">{posicao_texto}</span></div>', unsafe_allow_html=True)
     
+    # 2. BANNERS DE ALERTA MÁXIMO (REPRODUÇÃO E % VENDA - RESTAURADOS NO TOPO)
     if dados_lote.get("porcentagem_venda"):
-        st.markdown(f'<div class="porcentagem-box">VENDA DE {dados_lote["porcentagem_venda"]} DO ANIMAL</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="banner-venda">💎 VENDA DE {dados_lote["porcentagem_venda"]} DO ANIMAL</div>', unsafe_allow_html=True)
     
+    if dados_lote.get("info_reproducao"):
+        if dados_lote.get("tipo_reproducao") == "prenhez":
+            st.markdown(f'<div class="banner-prenhez">🤰 {dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="banner-inseminacao">💉 {dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
+
     if dados_lote.get("nome_animal"):
         st.markdown(f'<div class="nome-animal-box">🐂 {dados_lote["nome_animal"]}</div>', unsafe_allow_html=True)
     
-    if dados_lote.get("info_reproducao"):
-        css_repro = "prenhez-box" if dados_lote.get("tipo_reproducao") == "prenhez" else "inseminacao-box"
-        st.markdown(f'<div class="{css_repro}">{dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
-    
+    # 3. FICHA RESUMIDA
     if dados_lote:
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -463,19 +434,17 @@ with col_esquerda:
         with c3:
             st.markdown(f'<div class="animal-info"><strong>QTD:</strong><br>{dados_lote.get("qtd","-")}<br><br><strong>VENDEDOR:</strong><br>{dados_lote.get("vendedor","-")}</div>', unsafe_allow_html=True)
     
-    # 🤖 CONSIDERAÇÕES DA IA
+    # 4. CARDS RÁPIDOS DA IA (JOGO RÁPIDO)
     if img_pagina_bytes:
-        with st.spinner("🤖 Gemini analisando a linhagem genética e reprodução..."):
-            analise_ia = analisar_lote_com_gemini(img_pagina_bytes, num_lote, dados_lote, api_key)
-            st.markdown(f'''
-            <div class="ai-consideracoes-box">
-                <h3 style="margin-top:0; color:#818CF8;">🤖 CONSIDERAÇÕES DA IA (LINHAGEM & REPRODUÇÃO)</h3>
-                <div>{analise_ia}</div>
-            </div>
-            ''', unsafe_allow_html=True)
+        with st.spinner("⚡ IA gerando destaques de pista..."):
+            cards_ia = analisar_lote_com_gemini_cards(img_pagina_bytes, num_lote, dados_lote, api_key)
+            if cards_ia:
+                st.markdown("### ⚡ DESTAQUES DA IA (JOGO RÁPIDO)")
+                for card in cards_ia:
+                    st.markdown(f'<div class="ai-card">💡 {card}</div>', unsafe_allow_html=True)
 
-    # 🎙️ GATILHOS
-    st.markdown("### 🎙️ GATILHOS PARA O MICROFONE")
+    # 5. GATILHOS DE CANTA
+    st.markdown("### 🎙️ GATILHOS DE MIC")
     gatilhos = gerar_gatilhos(dados_lote)
     for g in gatilhos:
         st.markdown(f'<div class="gatilho-card">{g}</div>', unsafe_allow_html=True)
