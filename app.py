@@ -85,6 +85,7 @@ css_code = """
         border-radius: 10px;
         margin: 5px 0;
         font-size: 18px;
+        font-weight: bold;
     }
     .mae-box {
         background: linear-gradient(135deg, #E91E63 0%, #C2185B 100%);
@@ -93,6 +94,7 @@ css_code = """
         border-radius: 10px;
         margin: 5px 0;
         font-size: 18px;
+        font-weight: bold;
     }
     .avo-paterno-box {
         background: linear-gradient(135deg, #64B5F6 0%, #42A5F5 100%);
@@ -101,6 +103,7 @@ css_code = """
         border-radius: 8px;
         margin: 5px 0;
         font-size: 16px;
+        font-weight: bold;
     }
     .avo-materno-box {
         background: linear-gradient(135deg, #F48FB1 0%, #EC407A 100%);
@@ -109,6 +112,7 @@ css_code = """
         border-radius: 8px;
         margin: 5px 0;
         font-size: 16px;
+        font-weight: bold;
     }
     .porcentagem-box {
         background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
@@ -138,6 +142,7 @@ css_code = """
         border-radius: 15px;
         font-size: 18px;
         margin: 10px 0;
+        font-weight: bold;
     }
     .stButton > button {
         min-height: 60px;
@@ -199,7 +204,6 @@ def processar_pdf(file_bytes):
         st.error(f"Erro ao processar PDF: {str(e)}")
     return paginas
 
-# RENDERIZADOR DA PÁGINA COMO IMAGEM REAL
 @st.cache_data(show_spinner=False)
 def renderizar_pagina_imagem(file_bytes, num_pagina):
     try:
@@ -211,7 +215,6 @@ def renderizar_pagina_imagem(file_bytes, num_pagina):
         return None
     return None
 
-# ==================== BUSCA DE PÁGINA DO LOTE ====================
 @st.cache_data
 def encontrar_pagina_catalogo(texto_cat_tuple, num_lote):
     texto_cat = list(texto_cat_tuple)
@@ -300,26 +303,97 @@ def extrair_dados_oe(texto_oe_tuple):
                     dados_por_lote[lt_num] = dados
     return sequencia, dados_por_lote
 
-# ==================== EXTRAÇÃO DA GENEALOGIA ====================
+# ==================== EXTRAÇÃO INTELIGENTE DA GENEALOGIA ====================
 def extrair_genealogia(texto_cat, num_lote):
-    genealogia = {"pai": "", "mae": "", "avo_paterno": "", "avo_paterna": "", "avo_materno": "", "avo_materna": ""}
+    genealogia = {
+        "pai": "",
+        "mae": "",
+        "avo_paterno": "",
+        "avo_paterna": "",
+        "avo_materno": "",
+        "avo_materna": ""
+    }
     if not texto_cat:
         return genealogia
     
+    num_lote_str = str(int(num_lote))
+    
     for pagina in texto_cat:
-        linhas = pagina.split('\n')
-        for i, linha in enumerate(linhas):
-            if re.search(rf"\b{int(num_lote)}\b", linha):
-                inicio, fim = max(0, i - 3), min(len(linhas), i + 40)
-                bloco = linhas[inicio:fim]
+        linhas = [l.strip() for l in pagina.split('\n') if l.strip()]
+        
+        # Encontra a linha onde o lote é apresentado
+        lote_line_idx = -1
+        for idx, l in enumerate(linhas):
+            if re.search(rf"\b(lote|lt)?\s*0*{num_lote_str}\b", l, re.IGNORECASE):
+                if "RG:" not in l and "NASC" not in l and "PESO" not in l:
+                    lote_line_idx = idx
+                    break
+        
+        if lote_line_idx == -1:
+            continue
+            
+        # 1. Se o PDF tiver rótulos explícitos (PAI:, MÃE:, etc.)
+        has_explicit = any(k in l.upper() for l in linhas for k in ["PAI:", "MÃE:", "MAE:", "SIRE:", "DAM:"])
+        if has_explicit:
+            for l in linhas:
+                l_up = l.upper()
+                if "PAI:" in l_up or "SIRE:" in l_up:
+                    genealogia["pai"] = re.split(r"(?:PAI|SIRE)\s*:\s*", l, flags=re.IGNORECASE)[-1].strip()
+                elif "MAE:" in l_up or "MÃE:" in l_up or "DAM:" in l_up:
+                    genealogia["mae"] = re.split(r"(?:MA[EÊ]|DAM)\s*:\s*", l, flags=re.IGNORECASE)[-1].strip()
+                elif "AVO PATERNO" in l_up or "AVÔ PATERNO" in l_up:
+                    genealogia["avo_paterno"] = re.split(r"AV[OÔ]\s+PATERNO\s*:\s*", l, flags=re.IGNORECASE)[-1].strip()
+                elif "AVO MATERNO" in l_up or "AVÔ MATERNO" in l_up:
+                    genealogia["avo_materno"] = re.split(r"AV[OÔ]\s+MATERNO\s*:\s*", l, flags=re.IGNORECASE)[-1].strip()
+            return genealogia
+
+        # 2. Mapeamento de Árvore Visual (Catálogos em Gráficos como Terra Prometida)
+        block_lines = []
+        capturing = False
+        
+        for idx in range(lote_line_idx, len(linhas)):
+            l = linhas[idx]
+            l_up = l.upper()
+            
+            if ("RG:" in l_up or "NASC" in l_up or "FÊMEA" in l_up or "MACHO" in l_up) and not capturing:
+                capturing = True
+                continue
+            
+            if capturing:
+                if any(k in l_up for k in ["PESO:", "PONDERAL:", "PRENHE", "PARIDA", "INSEMINADA", "PREV.", "FAZENDA TERRA"]):
+                    break
                 
-                for idx in range(len(bloco)):
-                    l_up = bloco[idx].strip().upper()
-                    if "PAI:" in l_up:
-                        genealogia["pai"] = l_up.split("PAI:")[1].strip()
-                    elif "MAE:" in l_up or "MÃE:" in l_up:
-                        genealogia["mae"] = re.split(r"MA[EÊ]:", l_up)[1].strip()
-                break
+                if not any(k in l_up for k in ["ANIMAL", "INDIVIDUAL", "LOTE", "TERRA PROMETIDA", "FAZENDA", "NELORE HEJ"]):
+                    block_lines.append(l)
+        
+        # Junta palavras quebradas da árvore em linhas consecutivas
+        cleaned_pedigree = []
+        for bl in block_lines:
+            if cleaned_pedigree and (bl.upper() in ["GENIO", "CANAÃ", "CANAA", "CRL", "HEJ", "SM", "SS", "MN", "DI"]):
+                cleaned_pedigree[-1] = f"{cleaned_pedigree[-1]} {bl}"
+            else:
+                cleaned_pedigree.append(bl)
+                
+        # Extração Posicional Padrão de Árvore de 3 Gerações
+        if len(cleaned_pedigree) >= 6:
+            # Lado Paterno (Coluna da Esquerda)
+            genealogia["avo_paterno"] = cleaned_pedigree[1] if len(cleaned_pedigree) > 1 else ""
+            genealogia["pai"] = cleaned_pedigree[3] if len(cleaned_pedigree) > 3 else cleaned_pedigree[0]
+            genealogia["avo_paterna"] = cleaned_pedigree[5] if len(cleaned_pedigree) > 5 else ""
+            
+            # Lado Materno (Coluna da Direita)
+            if len(cleaned_pedigree) >= 11:
+                genealogia["avo_materno"] = cleaned_pedigree[8] if len(cleaned_pedigree) > 8 else ""
+                genealogia["mae"] = cleaned_pedigree[10] if len(cleaned_pedigree) > 10 else cleaned_pedigree[-2]
+                if len(cleaned_pedigree) > 12:
+                    genealogia["avo_materna"] = cleaned_pedigree[12]
+            else:
+                genealogia["mae"] = cleaned_pedigree[-1]
+                if len(cleaned_pedigree) >= 8:
+                    genealogia["avo_materno"] = cleaned_pedigree[7]
+
+            return genealogia
+
     return genealogia
 
 # ==================== GATILHOS ====================
@@ -340,10 +414,13 @@ def gerar_gatilhos(dados_lote, genealogia=None):
     if "vaca" in categoria:
         gatilhos.append("MATRIZ COMPROVADA E PRODUTIVA!")
     
+    if genealogia and genealogia.get("pai") and genealogia.get("mae"):
+        gatilhos.append(f"PEDIGREE: {genealogia['pai']} x {genealogia['mae']}!")
+        
     gatilhos.extend(["PROCEDÊNCIA COMPROVADA!", "LIQUIDEZ IMEDIATA NA PISTA!"])
     return gatilhos[:5]
 
-# ==================== INTERFACE ====================
+# ==================== INTERFACE PRINCIPAL ====================
 st.title("PAINEL DO LEILOEIRO PRO")
 
 with st.sidebar:
@@ -404,7 +481,7 @@ pagina_catalogo, texto_pagina_catalogo = encontrar_pagina_catalogo(tuple(texto_c
 # LAYOUT PRINCIPAL
 col_esquerda, col_direita = st.columns([1, 1])
 
-# COLUNA ESQUERDA (DADOS PRINCIPAIS)
+# COLUNA ESQUERDA (DADOS PRINCIPAIS E GENEALOGIA)
 with col_esquerda:
     lote_texto = f"LOTE {num_lote}"
     posicao_texto = dados_lote.get("posicao", f"{st.session_state.lote_idx + 1}º")
@@ -429,17 +506,43 @@ with col_esquerda:
         with c3:
             st.markdown(f'<div class="animal-info"><strong>QTD:</strong><br>{dados_lote.get("qtd","-")}<br><br><strong>VENDEDOR:</strong><br>{dados_lote.get("vendedor","-")}</div>', unsafe_allow_html=True)
     
+    # GENEALOGIA EXTRAÍDA
+    has_gen = any(v for v in genealogia.values())
+    if has_gen:
+        st.markdown("### 🧬 GENEALOGIA")
+        col_pai, col_mae = st.columns(2)
+        
+        with col_pai:
+            if genealogia.get("pai"):
+                st.markdown(f'<div class="pai-box"><strong>PAI:</strong><br>{genealogia["pai"]}</div>', unsafe_allow_html=True)
+            col_avop1, col_avop2 = st.columns(2)
+            with col_avop1:
+                if genealogia.get("avo_paterno"):
+                    st.markdown(f'<div class="avo-paterno-box"><strong>AVÔ PAT:</strong><br>{genealogia["avo_paterno"]}</div>', unsafe_allow_html=True)
+            with col_avop2:
+                if genealogia.get("avo_paterna"):
+                    st.markdown(f'<div class="avo-paterno-box"><strong>AVÓ PAT:</strong><br>{genealogia["avo_paterna"]}</div>', unsafe_allow_html=True)
+        
+        with col_mae:
+            if genealogia.get("mae"):
+                st.markdown(f'<div class="mae-box"><strong>MÃE:</strong><br>{genealogia["mae"]}</div>', unsafe_allow_html=True)
+            col_avom1, col_avom2 = st.columns(2)
+            with col_avom1:
+                if genealogia.get("avo_materno"):
+                    st.markdown(f'<div class="avo-materno-box"><strong>AVÔ MAT:</strong><br>{genealogia["avo_materno"]}</div>', unsafe_allow_html=True)
+            with col_avom2:
+                if genealogia.get("avo_materna"):
+                    st.markdown(f'<div class="avo-materno-box"><strong>AVÓ MAT:</strong><br>{genealogia["avo_materna"]}</div>', unsafe_allow_html=True)
+
     st.markdown("### 🎙️ GATILHOS")
     gatilhos = gerar_gatilhos(dados_lote, genealogia)
     for g in gatilhos:
         st.markdown(f'<div class="gatilho-card">{g}</div>', unsafe_allow_html=True)
 
-# COLUNA DIREITA (PREVIEW REAL DA PÁGINA DO CATÁLOGO COMO FOTO)
+# COLUNA DIREITA (PREVIEW VISUAL DO CATÁLOGO)
 with col_direita:
     if mostrar_preview and file_cat and pagina_catalogo >= 0:
         st.markdown(f'<div class="catalogo-header">📖 CATÁLOGO VISUAL - PÁGINA {pagina_catalogo + 1}</div>', unsafe_allow_html=True)
-        
-        # Renderiza a página como Imagem Real (alta definição)
         img_pagina = renderizar_pagina_imagem(file_cat.getvalue(), pagina_catalogo)
         if img_pagina:
             st.image(img_pagina, use_container_width=True)
