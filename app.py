@@ -273,10 +273,7 @@ def extrair_dados_oe(texto_oe_tuple):
 @st.cache_data(show_spinner=False)
 def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, api_key):
     if not api_key:
-        return "⚠️ Chave não encontrada. Insira GEMINI_API_KEY nos Secrets do Streamlit."
-
-    if not api_key.startswith("AIzaSy"):
-        return "⚠️ A chave cadastrada não é do Google AI Studio. Crie uma chave válida em: https://aistudio.google.com/app/apikey (chaves válidas começam com 'AIzaSy')."
+        return "⚠️ Chave GEMINI_API_KEY não encontrada nos Secrets do Streamlit."
 
     try:
         genai.configure(api_key=api_key)
