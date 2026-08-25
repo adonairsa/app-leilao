@@ -269,11 +269,43 @@ def extrair_dados_oe(texto_oe_tuple):
                     dados_por_lote[lt_num] = dados
     return sequencia, dados_por_lote
 
-# ==================== ANÁLISE COM TESTE AUTOMÁTICO DE MODELOS ====================
+# ==================== DESCOBERTA DINÂMICA DE MODELOS E ANÁLISE ====================
 @st.cache_data(show_spinner=False)
 def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, api_key):
     if not api_key:
         return "⚠️ Chave GEMINI_API_KEY não encontrada nos Secrets do Streamlit."
+
+    api_key_clean = api_key.strip()
+
+    # 1. Consulta dinamicamente os modelos disponíveis para esta chave
+    modelo_ativo = None
+    modelos_disponiveis = []
+
+    try:
+        url_models = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key_clean}"
+        res_m = requests.get(url_models, timeout=10).json()
+        if 'models' in res_m:
+            for m in res_m['models']:
+                name = m.get('name', '')
+                methods = m.get('supportedGenerationMethods', [])
+                if 'generateContent' in methods:
+                    clean_name = name.replace('models/', '')
+                    modelos_disponiveis.append(clean_name)
+
+            # Prioriza modelos de visão rápida
+            for pref in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-pro-vision"]:
+                if pref in modelos_disponiveis:
+                    modelo_ativo = pref
+                    break
+
+            if not modelo_ativo and modelos_disponiveis:
+                modelo_ativo = modelos_disponiveis[0]
+    except:
+        pass
+
+    if not modelo_ativo:
+        # Se a listagem falhar, usa os nomes padrão
+        modelo_ativo = "gemini-1.5-flash"
 
     base64_image = base64.b64encode(img_bytes).decode('utf-8')
 
@@ -305,32 +337,22 @@ def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, api_key):
         }]
     }
 
-    # Lista de modelos suportados para teste automático em ordem de preferência
-    modelos = [
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-2.0-flash",
-        "gemini-1.5-pro"
-    ]
-
+    # Tenta enviar a requisição para o modelo descoberto
     headers = {"Content-Type": "application/json"}
-    erros_acumulados = []
-
-    for modelo in modelos:
+    
+    # Testa os dois endpoints (v1beta e v1) para o modelo escolhido
+    for ver in ["v1beta", "v1"]:
         try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key.strip()}"
+            url = f"https://generativelanguage.googleapis.com/{ver}/models/{modelo_ativo}:generateContent?key={api_key_clean}"
             response = requests.post(url, headers=headers, json=payload, timeout=25)
             res_json = response.json()
 
             if response.status_code == 200 and 'candidates' in res_json:
                 return res_json['candidates'][0]['content']['parts'][0]['text']
-            else:
-                err_msg = res_json.get('error', {}).get('message', response.text)
-                erros_acumulados.append(f"{modelo}: {err_msg}")
-        except Exception as e:
-            erros_acumulados.append(f"{modelo}: {str(e)}")
+        except Exception:
+            pass
 
-    return f"Erro na requisição. Detalhes: {' | '.join(erros_acumulados[:2])}"
+    return f"Não foi possível processar a imagem com o modelo ({modelo_ativo}). Modelos disponíveis para sua chave: {', '.join(modelos_disponiveis[:5]) if modelos_disponiveis else 'Nenhum retornado'}"
 
 # ==================== GATILHOS ====================
 def gerar_gatilhos(dados_lote):
