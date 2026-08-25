@@ -121,7 +121,7 @@ css_code = """
         background-color: #1E1B4B !important;
         padding: 20px;
         border-radius: 15px;
-        margin: 15px 0;
+        margin-top: 15px;
         border-left: 8px solid #818CF8;
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
@@ -289,7 +289,6 @@ def enriquecer_dados_com_catalogo(dados_lote, texto_pagina_cat):
     
     dados_atualizados = dados_lote.copy()
     
-    # Se a info de reprodução não foi encontrada na O.E., busca na página do Catálogo
     if not dados_atualizados.get("info_reproducao"):
         linhas = texto_pagina_cat.split('\n')
         for l in linhas:
@@ -309,57 +308,77 @@ def enriquecer_dados_com_catalogo(dados_lote, texto_pagina_cat):
                 
     return dados_atualizados
 
-# ==================== ANÁLISE DA IA (LÊ OE + CATÁLOGO + IMAGEM) ====================
+# ==================== ANÁLISE ROBUSTA DA IA (GEMINI MULTIMODAL / TEXTO) ====================
 @st.cache_data(show_spinner=False)
 def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, texto_pagina_cat, api_key):
     if not api_key:
         return "⚠️ Insira a GEMINI_API_KEY nos Secrets do Streamlit para ativar a análise inteligente."
 
-    base64_image = base64.b64encode(img_bytes).decode('utf-8')
-
-    prompt = f"""
+    prompt_text = f"""
     Você é um zootecnista e leiloeiro de elite no agronegócio.
-    Analise a imagem da página do catálogo, o texto extraído do catálogo e os dados da Ordem de Entrada:
-    
-    --- DADOS DA ORDEM DE ENTRADA E PISTA ---
+    Analise as informações do LOTE {num_lote}:
+
+    --- DADOS DE PISTA E ORDEM DE ENTRADA ---
     - Animal/Produto: {dados_lote.get('nome_animal') or dados_lote.get('produto', 'N/A')}
     - Oferta: {dados_lote.get('porcentagem_venda', '100%')}
-    - Status Reprodutivo (OE): {dados_lote.get('info_reproducao', 'N/A')}
+    - Status Reprodutivo: {dados_lote.get('info_reproducao', 'N/A')}
     - Categoria/Peso/Idade: {dados_lote.get('categoria', 'N/A')} - {dados_lote.get('peso', 'N/A')} - {dados_lote.get('idade', 'N/A')}
 
-    --- TEXTO EXTRAÍDO DA PÁGINA DO CATÁLOGO ---
-    {texto_pagina_cat[:1000] if texto_pagina_cat else "Sem texto impresso"}
+    --- TEXTO DA PÁGINA DO CATÁLOGO ---
+    {texto_pagina_cat[:1200] if texto_pagina_cat else "Sem texto impresso"}
 
-    Gere um parecer direto em tópicos para leitura rápida no microfone:
-    1. 🏆 **Premiações e Raçadores da Linhagem**: Identifique na árvore genealógica touros e matrizes de destaque (ex: Landau, Bitelo, Rambo, Basco, Ludy) e mencione o valor genético.
-    2. 🧬 **Valorização do Acasalamento/Ventre**: Se parida, prenhe ou inseminada (detalhes do touro acasalado, prev. de parto ou bezerro ao pé).
-    3. 💡 **Frase Principal para o Microfone**: 1 argumento de alto impacto para valorizar o lote.
+    Gere um parecer direto para o leiloeiro usar no microfone:
+    1. 🏆 **Premiações e Raçadores da Linhagem**: Identifique na árvore genealógica touros e matrizes de destaque (ex: Landau, Bitelo, Rambo, Basco, Ludy, Brado, Fajardo) e comente a força genética.
+    2. 🧬 **Valorização do Acasalamento/Ventre**: Se parida, prenhe ou inseminada, comente o potencial do touro acasalado e o valor do bezerro ou barriga.
+    3. 💡 **Frase de Impacto para o Microfone**: 1 argumento curto e forte para acelerar as apostas.
     """
 
-    payload = {
+    api_key_clean = api_key.strip()
+    headers = {"Content-Type": "application/json"}
+    modelos = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
+
+    # 1. TENTA ENVIO DA IMAGEM + TEXTO
+    if img_bytes:
+        base64_image = base64.b64encode(img_bytes).decode('utf-8')
+        payload_img = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt_text},
+                    {"inline_data": {"mime_type": "image/jpeg", "data": base64_image}}
+                ]
+            }]
+        }
+        for ver in ["v1beta", "v1"]:
+            for mod in modelos:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/{ver}/models/{mod}:generateContent?key={api_key_clean}"
+                    response = requests.post(url, headers=headers, json=payload_img, timeout=20)
+                    if response.status_code == 200:
+                        res_json = response.json()
+                        if 'candidates' in res_json and res_json['candidates']:
+                            return res_json['candidates'][0]['content']['parts'][0]['text']
+                except:
+                    pass
+
+    # 2. FALLBACK: TENTA ENVIO APENAS DE TEXTO (GARANTE RESULTADO MESMO SE A IMAGEM FALHAR)
+    payload_txt = {
         "contents": [{
-            "parts": [
-                {"text": prompt},
-                {"inline_data": {"mime_type": "image/jpeg", "data": base64_image}}
-            ]
+            "parts": [{"text": prompt_text}]
         }]
     }
+    for ver in ["v1beta", "v1"]:
+        for mod in modelos:
+            try:
+                url = f"https://generativelanguage.googleapis.com/{ver}/models/{mod}:generateContent?key={api_key_clean}"
+                response = requests.post(url, headers=headers, json=payload_txt, timeout=20)
+                if response.status_code == 200:
+                    res_json = response.json()
+                    if 'candidates' in res_json and res_json['candidates']:
+                        return res_json['candidates'][0]['content']['parts'][0]['text']
+            except:
+                pass
 
-    modelos = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
-    headers = {"Content-Type": "application/json"}
-
-    for modelo in modelos:
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key.strip()}"
-            response = requests.post(url, headers=headers, json=payload, timeout=25)
-            res_json = response.json()
-
-            if response.status_code == 200 and 'candidates' in res_json:
-                return res_json['candidates'][0]['content']['parts'][0]['text']
-        except:
-            pass
-
-    return "Não foi possível gerar a análise da IA para este lote."
+    return "Não foi possível conectar à API do Gemini no momento. Verifique se a chave cadastrada nos Secrets está ativa."
 
 # ==================== GATILHOS DE CANTA ====================
 def gerar_gatilhos(dados_lote):
@@ -446,6 +465,7 @@ dados_lote = enriquecer_dados_com_catalogo(dados_lote_oe, texto_pagina_catalogo)
 # LAYOUT PRINCIPAL
 col_esquerda, col_direita = st.columns([1, 1])
 
+# COLUNA ESQUERDA (DADOS DE PISTA E GATILHOS)
 with col_esquerda:
     lote_texto = f"LOTE {num_lote}"
     posicao_texto = dados_lote.get("posicao", f"{st.session_state.lote_idx + 1}º")
@@ -453,7 +473,7 @@ with col_esquerda:
     # 1. BANNER DO LOTE
     st.markdown(f'<div class="lote-destaque">{lote_texto}<br><span style="font-size: 24px;">{posicao_texto}</span></div>', unsafe_allow_html=True)
     
-    # 2. BANNERS DE REPRODUÇÃO E OFERTA (LÊ OE + CATÁLOGO)
+    # 2. BANNERS DE REPRODUÇÃO E OFERTA (% DE VENDA / PARIDA / PRENHE / INSEMINADA)
     if dados_lote.get("porcentagem_venda"):
         st.markdown(f'<div class="banner-venda">💎 OFERTA DE {dados_lote["porcentagem_venda"]} DO ANIMAL</div>', unsafe_allow_html=True)
     
@@ -478,25 +498,14 @@ with col_esquerda:
             st.markdown(f'<div class="animal-info"><strong>PESO:</strong><br>{dados_lote.get("peso","-")}<br><br><strong>IDADE:</strong><br>{dados_lote.get("idade","-")}</div>', unsafe_allow_html=True)
         with c3:
             st.markdown(f'<div class="animal-info"><strong>QTD:</strong><br>{dados_lote.get("qtd","-")}<br><br><strong>VENDEDOR:</strong><br>{dados_lote.get("vendedor","-")}</div>', unsafe_allow_html=True)
-    
-    # 4. PAINEL DE CONSIDERAÇÕES DA IA (LÊ OE + CATÁLOGO + IMAGEM)
-    if img_pagina_bytes:
-        with st.spinner("🤖 Gemini analisando a linhagem e reprodução..."):
-            analise_ia = analisar_lote_com_gemini(img_pagina_bytes, num_lote, dados_lote, texto_pagina_catalogo, api_key)
-            st.markdown(f'''
-            <div class="ai-consideracoes-box">
-                <h3 style="margin-top:0; color:#818CF8;">🤖 CONSIDERAÇÕES DA IA (LINHAGEM & REPRODUÇÃO)</h3>
-                <div>{analise_ia}</div>
-            </div>
-            ''', unsafe_allow_html=True)
 
-    # 5. GATILHOS DE MIC
+    # 4. GATILHOS DE MIC
     st.markdown("### 🎙️ GATILHOS PARA O MICROFONE")
     gatilhos = gerar_gatilhos(dados_lote)
     for g in gatilhos:
         st.markdown(f'<div class="gatilho-card">{g}</div>', unsafe_allow_html=True)
 
-# COLUNA DIREITA (PREVIEW VISUAL DO CATÁLOGO)
+# COLUNA DIREITA (PREVIEW VISUAL DO CATÁLOGO + CONSIDERAÇÕES DA IA LOGO ABAIXO)
 with col_direita:
     if mostrar_preview and img_pagina_bytes:
         st.markdown(f'<div class="catalogo-header">📖 CATÁLOGO VISUAL - PÁGINA {pagina_catalogo + 1}</div>', unsafe_allow_html=True)
@@ -505,3 +514,14 @@ with col_direita:
         st.info("Lote não localizado na busca visual do catálogo.")
     elif mostrar_preview and not file_cat:
         st.info("Suba o arquivo do catálogo no menu lateral para abrir o preview visual.")
+
+    # 🤖 CONSIDERAÇÕES DA IA (POSICIONADO EXATAMENTE ABAIXO DA IMAGEM DO CATÁLOGO)
+    if img_pagina_bytes or texto_pagina_catalogo:
+        with st.spinner("🤖 Gemini analisando a linhagem e reprodução..."):
+            analise_ia = analisar_lote_com_gemini(img_pagina_bytes, num_lote, dados_lote, texto_pagina_catalogo, api_key)
+            st.markdown(f'''
+            <div class="ai-consideracoes-box">
+                <h3 style="margin-top:0; color:#818CF8;">🤖 CONSIDERAÇÕES DA IA (LINHAGEM & REPRODUÇÃO)</h3>
+                <div>{analise_ia}</div>
+            </div>
+            ''', unsafe_allow_html=True)
