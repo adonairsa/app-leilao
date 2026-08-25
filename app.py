@@ -3,12 +3,71 @@ import pdfplumber
 import re
 from io import BytesIO
 
+# ==================== CONFIGURAÇÃO INICIAL ====================
 st.set_page_config(
     page_title="PAINEL DO LEILOEIRO PRO",
     page_icon="🐂",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
+    menu_items={
+        'Get Help': None,
+        'Report a bug': None,
+        'About': None
+    }
 )
+
+# ==================== ESCONDER MENU E RODAPÉ ====================
+st.markdown("""
+<style>
+    /* Esconde o menu hamburguer */
+    #MainMenu {
+        visibility: hidden;
+        display: none;
+    }
+    
+    /* Esconde o rodapé */
+    footer {
+        visibility: hidden;
+        display: none;
+    }
+    
+    /* Esconde o botão de deploy */
+    [data-testid="stToolbar"] {
+        display: none;
+    }
+    
+    /* Esconde o ícone do Streamlit */
+    [data-testid="stDecoration"] {
+        display: none;
+    }
+    
+    /* Esconde o "Made with Streamlit" */
+    .viewerBadge_container__1QSob {
+        display: none !important;
+    }
+    
+    /* Esconde o link do Streamlit */
+    a[href*="streamlit"] {
+        display: none !important;
+    }
+    
+    /* Remove espaço extra no topo */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0rem;
+    }
+    
+    /* Esconde header padrão */
+    header[data-testid="stHeader"] {
+        display: none;
+    }
+    
+    /* Ajusta margens */
+    .main {
+        padding: 0;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # ==================== CSS PARA TABLET ====================
 st.markdown("""
@@ -240,23 +299,21 @@ def extrair_dados_oe(texto_oe_tuple):
                         "linha_completa": linha_limpa
                     }
                     
-                    # ============ EXTRAI PORCENTAGEM DE VENDA ============
+                    # Porcentagem de venda
                     m_porcentagem = re.search(r"(\d+%)\s*de:\s*(.+)", linha_limpa, re.IGNORECASE)
                     if m_porcentagem:
                         dados["porcentagem_venda"] = m_porcentagem.group(1)
                         dados["nome_animal"] = m_porcentagem.group(2).strip()
                     
-                    # ============ EXTRAI INFORMAÇÕES DE REPRODUÇÃO ============
+                    # Informações de reprodução
                     linha_lower = linha_limpa.lower()
                     
-                    # Detecta INSEMINAÇÃO
                     if re.search(r"inseminada\s+(?:do|de)\s+(\S+)", linha_lower):
                         m_insem = re.search(r"inseminada\s+(?:do|de)\s+([^|]+)", linha_limpa, re.IGNORECASE)
                         if m_insem:
                             dados["info_reproducao"] = f"Inseminada do {m_insem.group(1).strip()}"
                             dados["tipo_reproducao"] = "inseminacao"
                     
-                    # Detecta PRENHEZ com detalhes
                     if re.search(r"prenhe\s+(?:do|de)\s+(\S+)", linha_lower):
                         m_prenhe = re.search(r"prenhe\s+(?:do|de)\s+([^|]+?)(?:\s*\.\s*prev\.?\s*de\s*parto:?\s*([^|]+))?", linha_limpa, re.IGNORECASE)
                         if m_prenhe:
@@ -265,7 +322,6 @@ def extrair_dados_oe(texto_oe_tuple):
                                 dados["info_reproducao"] += f" - Prev. de parto: {m_prenhe.group(2).strip()}"
                             dados["tipo_reproducao"] = "prenhez"
                     
-                    # Se não encontrou com padrão específico, captura a linha completa
                     if not dados["info_reproducao"]:
                         if "inseminada" in linha_lower:
                             dados["info_reproducao"] = linha_limpa
@@ -274,7 +330,7 @@ def extrair_dados_oe(texto_oe_tuple):
                             dados["info_reproducao"] = linha_limpa
                             dados["tipo_reproducao"] = "prenhez"
                     
-                    # ============ EXTRAI CAMPOS PADRÃO ============
+                    # Campos padrão
                     if len(parts) >= 1:
                         dados["qtd"] = parts[0]
                     if len(parts) >= 2:
@@ -284,7 +340,7 @@ def extrair_dados_oe(texto_oe_tuple):
                     if len(parts) >= 4:
                         dados["categoria"] = parts[3]
                     
-                    # ============ EXTRAI PRODUTO E RAÇA ============
+                    # Produto e raça
                     if len(parts) >= 5:
                         produto_parts = []
                         vendedor_encontrado = False
@@ -455,14 +511,12 @@ def gerar_gatilhos(dados_lote, genealogia=None):
     produto = dados_lote.get("produto", "").lower()
     raca = dados_lote.get("raca", "").lower()
     
-    # Gatilho para porcentagem de venda
     if dados_lote.get("porcentagem_venda"):
         gatilhos.append(f"VENDA DE {dados_lote['porcentagem_venda']}: Oportunidade de investimento!")
     
     if dados_lote.get("nome_animal"):
         gatilhos.append(f"ANIMAL: {dados_lote['nome_animal']} - Destaque da pista!")
     
-    # Gatilhos para reprodução (informação completa)
     if dados_lote.get("info_reproducao"):
         gatilhos.append(f"REPRODUÇÃO: {dados_lote['info_reproducao']}")
     elif genealogia and genealogia.get("info_reproducao"):
@@ -498,7 +552,6 @@ def gerar_gatilhos(dados_lote, genealogia=None):
     if "angus" in raca:
         gatilhos.append("ANGUS: Carne premium, maciez garantida!")
     
-    # Genealogia
     if genealogia:
         if genealogia.get("pai") and genealogia.get("mae"):
             gatilhos.append(f"PEDIGREE: {genealogia['pai']} x {genealogia['mae']} - Cruzamento de elite!")
@@ -649,15 +702,15 @@ genealogia = extrair_genealogia(texto_cat, num_lote) if texto_cat else {}
 # ==================== PAINEL PRINCIPAL ====================
 st.markdown(f'<div class="lote-destaque">LOTE {num_lote}<br><span style="font-size: 24px;">{dados_lote.get("posicao", f"{st.session_state.lote_idx + 1}º")} A ENTRAR</span></div>', unsafe_allow_html=True)
 
-# Destaque para porcentagem de venda
+# Porcentagem de venda
 if dados_lote.get("porcentagem_venda"):
     st.markdown(f'<div class="porcentagem-box">VENDA DE {dados_lote["porcentagem_venda"]} DO ANIMAL</div>', unsafe_allow_html=True)
 
-# Nome do animal em destaque
+# Nome do animal
 if dados_lote.get("nome_animal"):
     st.markdown(f'<div class="nome-animal-box">🐂 {dados_lote["nome_animal"]}</div>', unsafe_allow_html=True)
 
-# Informações de reprodução (COMPLETAS)
+# Informações de reprodução
 if dados_lote.get("info_reproducao"):
     if dados_lote.get("tipo_reproducao") == "prenhez":
         st.markdown(f'<div class="prenhez-box">{dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
@@ -716,19 +769,4 @@ if genealogia:
                 st.markdown(f'<div class="avo-materno-box"><strong>AVÔ MATERNO:</strong><br>{genealogia["avo_materno"]}</div>', unsafe_allow_html=True)
         with col_avo_m2:
             if genealogia.get("avo_materna"):
-                st.markdown(f'<div class="avo-materno-box"><strong>AVÓ MATERNA:</strong><br>{genealogia["avo_materna"]}</div>', unsafe_allow_html=True)
-
-# Linha completa
-if dados_lote:
-    with st.expander("Ver linha completa da O.E."):
-        st.code(dados_lote.get("linha_completa", "-"))
-
-# Gatilhos
-st.markdown("### GATILHOS PARA CANTAR")
-gatilhos = gerar_gatilhos(dados_lote, genealogia)
-
-for gatilho in gatilhos:
-    st.markdown(f'<div class="gatilho-card">{gatilho}</div>', unsafe_allow_html=True)
-
-# Rodapé
-st
+                st.markdown(f'<div class="avo-materno-box"><strong>AVÓ MAT
