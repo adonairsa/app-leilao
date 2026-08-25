@@ -47,17 +47,23 @@ st.markdown("""
         padding: 20px;
         border-radius: 15px;
         margin: 15px 0;
-        font-size: 28px;
+        font-size: 24px;
         font-weight: bold;
         text-align: center;
         border: 3px solid #FF0000;
         box-shadow: 0 0 20px rgba(255,0,0,0.5);
-        animation: pulse 2s infinite;
     }
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-        100% { transform: scale(1); }
+    .inseminacao-box {
+        background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        margin: 15px 0;
+        font-size: 24px;
+        font-weight: bold;
+        text-align: center;
+        border: 3px solid #FF9800;
+        box-shadow: 0 0 20px rgba(255,152,0,0.5);
     }
     .pai-box {
         background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
@@ -187,7 +193,7 @@ def extrair_dados_oe(texto_oe_tuple):
     for pagina in texto_oe:
         linhas = pagina.split('\n')
         
-        for linha in linhas:
+        for linha_idx, linha in enumerate(linhas):
             linha_limpa = linha.strip()
             
             if not linha_limpa:
@@ -227,7 +233,8 @@ def extrair_dados_oe(texto_oe_tuple):
                         "produto": "",
                         "vendedor": "",
                         "raca": "",
-                        "prenhez": "",
+                        "info_reproducao": "",
+                        "tipo_reproducao": "",
                         "nome_animal": "",
                         "porcentagem_venda": "",
                         "linha_completa": linha_limpa
@@ -239,6 +246,34 @@ def extrair_dados_oe(texto_oe_tuple):
                         dados["porcentagem_venda"] = m_porcentagem.group(1)
                         dados["nome_animal"] = m_porcentagem.group(2).strip()
                     
+                    # ============ EXTRAI INFORMAÇÕES DE REPRODUÇÃO ============
+                    linha_lower = linha_limpa.lower()
+                    
+                    # Detecta INSEMINAÇÃO
+                    if re.search(r"inseminada\s+(?:do|de)\s+(\S+)", linha_lower):
+                        m_insem = re.search(r"inseminada\s+(?:do|de)\s+([^|]+)", linha_limpa, re.IGNORECASE)
+                        if m_insem:
+                            dados["info_reproducao"] = f"Inseminada do {m_insem.group(1).strip()}"
+                            dados["tipo_reproducao"] = "inseminacao"
+                    
+                    # Detecta PRENHEZ com detalhes
+                    if re.search(r"prenhe\s+(?:do|de)\s+(\S+)", linha_lower):
+                        m_prenhe = re.search(r"prenhe\s+(?:do|de)\s+([^|]+?)(?:\s*\.\s*prev\.?\s*de\s*parto:?\s*([^|]+))?", linha_limpa, re.IGNORECASE)
+                        if m_prenhe:
+                            dados["info_reproducao"] = f"Prenhe do {m_prenhe.group(1).strip()}"
+                            if m_prenhe.group(2):
+                                dados["info_reproducao"] += f" - Prev. de parto: {m_prenhe.group(2).strip()}"
+                            dados["tipo_reproducao"] = "prenhez"
+                    
+                    # Se não encontrou com padrão específico, captura a linha completa
+                    if not dados["info_reproducao"]:
+                        if "inseminada" in linha_lower:
+                            dados["info_reproducao"] = linha_limpa
+                            dados["tipo_reproducao"] = "inseminacao"
+                        elif "prenhe" in linha_lower or "prenha" in linha_lower:
+                            dados["info_reproducao"] = linha_limpa
+                            dados["tipo_reproducao"] = "prenhez"
+                    
                     # ============ EXTRAI CAMPOS PADRÃO ============
                     if len(parts) >= 1:
                         dados["qtd"] = parts[0]
@@ -249,11 +284,6 @@ def extrair_dados_oe(texto_oe_tuple):
                     if len(parts) >= 4:
                         dados["categoria"] = parts[3]
                     
-                    # Detecta prenhez
-                    linha_lower = linha_limpa.lower()
-                    if any(k in linha_lower for k in ["prenhe", "prenha", "prenhez", "gestante"]):
-                        dados["prenhez"] = "PRENHE"
-                    
                     # ============ EXTRAI PRODUTO E RAÇA ============
                     if len(parts) >= 5:
                         produto_parts = []
@@ -262,13 +292,11 @@ def extrair_dados_oe(texto_oe_tuple):
                         for part in parts[4:]:
                             part_lower = part.lower()
                             
-                            # Detecta raça
                             if part_lower in ["nelore", "angus", "girolando", "holandês", "hereford", "braford", "simental"]:
                                 dados["raca"] = part
                                 vendedor_encontrado = True
                                 continue
                             
-                            # Vendedor
                             if vendedor_encontrado:
                                 if not dados["vendedor"]:
                                     dados["vendedor"] = part
@@ -299,12 +327,8 @@ def extrair_dados_oe(texto_oe_tuple):
     
     return sequencia, dados_por_lote
 
-# ==================== EXTRAÇÃO DA GENEALOGIA CORRIGIDA ====================
+# ==================== EXTRAÇÃO DA GENEALOGIA ====================
 def extrair_genealogia(texto_cat, num_lote):
-    """
-    Extrai genealogia do catálogo com reconhecimento de:
-    PAI, MÃE, AVÔ PATERNO, AVÓ PATERNA, AVÔ MATERNO, AVÓ MATERNA
-    """
     genealogia = {
         "pai": "",
         "mae": "",
@@ -312,7 +336,7 @@ def extrair_genealogia(texto_cat, num_lote):
         "avo_paterna": "",
         "avo_materno": "",
         "avo_materna": "",
-        "prenhez": ""
+        "info_reproducao": ""
     }
     
     if not texto_cat:
@@ -324,26 +348,21 @@ def extrair_genealogia(texto_cat, num_lote):
         for i, linha in enumerate(linhas):
             linha_limpa = linha.strip()
             
-            # Procura o número do lote
             if re.search(rf"\b{int(num_lote)}\b", linha_limpa):
-                # Captura bloco ao redor (mais linhas para pegar toda genealogia)
                 inicio = max(0, i - 5)
                 fim = min(len(linhas), i + 40)
                 bloco = linhas[inicio:fim]
                 
-                # ============ PADRÕES DE RECONHECIMENTO ============
                 for idx, linha_bloco in enumerate(bloco):
                     linha_limpa_bloco = linha_bloco.strip()
                     linha_lower = linha_limpa_bloco.lower()
                     
                     # PAI
                     if re.search(r"\bPAI\s*:", linha_limpa_bloco, re.IGNORECASE):
-                        # Pega o nome na mesma linha ou próxima
                         m = re.search(r"PAI\s*:\s*(.+)", linha_limpa_bloco, re.IGNORECASE)
                         if m and m.group(1).strip():
                             genealogia["pai"] = m.group(1).strip()
                         else:
-                            # Procura na próxima linha
                             for j in range(idx + 1, min(idx + 3, len(bloco))):
                                 if bloco[j].strip() and not re.search(r":", bloco[j]):
                                     genealogia["pai"] = bloco[j].strip()
@@ -403,11 +422,19 @@ def extrair_genealogia(texto_cat, num_lote):
                                 if bloco[j].strip() and not re.search(r":", bloco[j]):
                                     genealogia["avo_materna"] = bloco[j].strip()
                                     break
-                
-                # Verifica prenhez
-                texto_completo = " ".join(bloco).lower()
-                if any(k in texto_completo for k in ["prenhe", "prenha", "gestante"]):
-                    genealogia["prenhez"] = "PRENHE"
+                    
+                    # Informações de reprodução
+                    if "inseminada" in linha_lower:
+                        m_insem = re.search(r"inseminada\s+(?:do|de)\s+([^|]+)", linha_limpa_bloco, re.IGNORECASE)
+                        if m_insem:
+                            genealogia["info_reproducao"] = f"Inseminada do {m_insem.group(1).strip()}"
+                    
+                    if "prenhe" in linha_lower or "prenha" in linha_lower:
+                        m_prenhe = re.search(r"prenhe\s+(?:do|de)\s+([^|]+?)(?:\s*\.\s*prev\.?\s*de\s*parto:?\s*([^|]+))?", linha_limpa_bloco, re.IGNORECASE)
+                        if m_prenhe:
+                            genealogia["info_reproducao"] = f"Prenhe do {m_prenhe.group(1).strip()}"
+                            if m_prenhe.group(2):
+                                genealogia["info_reproducao"] += f" - Prev. de parto: {m_prenhe.group(2).strip()}"
                 
                 break
     
@@ -435,9 +462,11 @@ def gerar_gatilhos(dados_lote, genealogia=None):
     if dados_lote.get("nome_animal"):
         gatilhos.append(f"ANIMAL: {dados_lote['nome_animal']} - Destaque da pista!")
     
-    # Prenhez
-    if dados_lote.get("prenhez") or (genealogia and genealogia.get("prenhez")):
-        gatilhos.append("PRENHEZ CONFIRMADA: Garantia de produção futura!")
+    # Gatilhos para reprodução (informação completa)
+    if dados_lote.get("info_reproducao"):
+        gatilhos.append(f"REPRODUÇÃO: {dados_lote['info_reproducao']}")
+    elif genealogia and genealogia.get("info_reproducao"):
+        gatilhos.append(f"REPRODUÇÃO: {genealogia['info_reproducao']}")
     
     if "touro" in categoria or "touro" in produto:
         gatilhos.extend([
@@ -564,15 +593,6 @@ if hasattr(st.session_state, 'mostrar_debug') and st.session_state.mostrar_debug
                 for linha in linhas[:15]:
                     if linha.strip():
                         st.code(linha)
-        
-        if texto_cat:
-            st.write("Primeiras linhas do Catálogo:")
-            for i, pagina in enumerate(texto_cat[:2]):
-                linhas = pagina.split('\n')
-                st.markdown(f"**Página {i+1}:**")
-                for linha in linhas[:20]:
-                    if linha.strip():
-                        st.code(linha)
 
 # Definir lista de lotes
 if sequencia_oe:
@@ -637,9 +657,17 @@ if dados_lote.get("porcentagem_venda"):
 if dados_lote.get("nome_animal"):
     st.markdown(f'<div class="nome-animal-box">🐂 {dados_lote["nome_animal"]}</div>', unsafe_allow_html=True)
 
-# Destaque para prenhez
-if dados_lote.get("prenhez") or genealogia.get("prenhez"):
-    st.markdown(f'<div class="prenhez-box">🐄 PRENHEZ CONFIRMADA! 🐄</div>', unsafe_allow_html=True)
+# Informações de reprodução (COMPLETAS)
+if dados_lote.get("info_reproducao"):
+    if dados_lote.get("tipo_reproducao") == "prenhez":
+        st.markdown(f'<div class="prenhez-box">{dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
+    elif dados_lote.get("tipo_reproducao") == "inseminacao":
+        st.markdown(f'<div class="inseminacao-box">{dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
+elif genealogia.get("info_reproducao"):
+    if "prenhe" in genealogia["info_reproducao"].lower():
+        st.markdown(f'<div class="prenhez-box">{genealogia["info_reproducao"]}</div>', unsafe_allow_html=True)
+    elif "inseminada" in genealogia["info_reproducao"].lower():
+        st.markdown(f'<div class="inseminacao-box">{genealogia["info_reproducao"]}</div>', unsafe_allow_html=True)
 
 if dados_lote:
     col1, col2, col3 = st.columns(3)
@@ -703,5 +731,4 @@ for gatilho in gatilhos:
     st.markdown(f'<div class="gatilho-card">{gatilho}</div>', unsafe_allow_html=True)
 
 # Rodapé
-st.markdown("---")
-st.markdown(f"**Total de lotes: {len(lista_lotes)}**")
+st
