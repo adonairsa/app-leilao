@@ -303,96 +303,87 @@ def extrair_dados_oe(texto_oe_tuple):
                     dados_por_lote[lt_num] = dados
     return sequencia, dados_por_lote
 
-# ==================== EXTRAÇÃO INTELIGENTE DA GENEALOGIA ====================
-def extrair_genealogia(texto_cat, num_lote):
+# ==================== EXTRAÇÃO ESPACIAL DE GENEALOGIA (CORRIGIDA) ====================
+@st.cache_data(show_spinner=False)
+def extrair_genealogia_espacial(file_bytes, num_pagina):
     genealogia = {
-        "pai": "",
-        "mae": "",
-        "avo_paterno": "",
-        "avo_paterna": "",
-        "avo_materno": "",
-        "avo_materna": ""
+        "pai": "", "mae": "",
+        "avo_paterno": "", "avo_paterna": "",
+        "avo_materno": "", "avo_materna": ""
     }
-    if not texto_cat:
+    if not file_bytes or num_pagina < 0:
         return genealogia
-    
-    num_lote_str = str(int(num_lote))
-    
-    for pagina in texto_cat:
-        linhas = [l.strip() for l in pagina.split('\n') if l.strip()]
-        
-        # Encontra a linha onde o lote é apresentado
-        lote_line_idx = -1
-        for idx, l in enumerate(linhas):
-            if re.search(rf"\b(lote|lt)?\s*0*{num_lote_str}\b", l, re.IGNORECASE):
-                if "RG:" not in l and "NASC" not in l and "PESO" not in l:
-                    lote_line_idx = idx
-                    break
-        
-        if lote_line_idx == -1:
-            continue
-            
-        # 1. Se o PDF tiver rótulos explícitos (PAI:, MÃE:, etc.)
-        has_explicit = any(k in l.upper() for l in linhas for k in ["PAI:", "MÃE:", "MAE:", "SIRE:", "DAM:"])
-        if has_explicit:
-            for l in linhas:
-                l_up = l.upper()
-                if "PAI:" in l_up or "SIRE:" in l_up:
-                    genealogia["pai"] = re.split(r"(?:PAI|SIRE)\s*:\s*", l, flags=re.IGNORECASE)[-1].strip()
-                elif "MAE:" in l_up or "MÃE:" in l_up or "DAM:" in l_up:
-                    genealogia["mae"] = re.split(r"(?:MA[EÊ]|DAM)\s*:\s*", l, flags=re.IGNORECASE)[-1].strip()
-                elif "AVO PATERNO" in l_up or "AVÔ PATERNO" in l_up:
-                    genealogia["avo_paterno"] = re.split(r"AV[OÔ]\s+PATERNO\s*:\s*", l, flags=re.IGNORECASE)[-1].strip()
-                elif "AVO MATERNO" in l_up or "AVÔ MATERNO" in l_up:
-                    genealogia["avo_materno"] = re.split(r"AV[OÔ]\s+MATERNO\s*:\s*", l, flags=re.IGNORECASE)[-1].strip()
-            return genealogia
 
-        # 2. Mapeamento de Árvore Visual (Catálogos em Gráficos como Terra Prometida)
-        block_lines = []
-        capturing = False
-        
-        for idx in range(lote_line_idx, len(linhas)):
-            l = linhas[idx]
-            l_up = l.upper()
-            
-            if ("RG:" in l_up or "NASC" in l_up or "FÊMEA" in l_up or "MACHO" in l_up) and not capturing:
-                capturing = True
-                continue
-            
-            if capturing:
-                if any(k in l_up for k in ["PESO:", "PONDERAL:", "PRENHE", "PARIDA", "INSEMINADA", "PREV.", "FAZENDA TERRA"]):
-                    break
-                
-                if not any(k in l_up for k in ["ANIMAL", "INDIVIDUAL", "LOTE", "TERRA PROMETIDA", "FAZENDA", "NELORE HEJ"]):
-                    block_lines.append(l)
-        
-        # Junta palavras quebradas da árvore em linhas consecutivas
-        cleaned_pedigree = []
-        for bl in block_lines:
-            if cleaned_pedigree and (bl.upper() in ["GENIO", "CANAÃ", "CANAA", "CRL", "HEJ", "SM", "SS", "MN", "DI"]):
-                cleaned_pedigree[-1] = f"{cleaned_pedigree[-1]} {bl}"
-            else:
-                cleaned_pedigree.append(bl)
-                
-        # Extração Posicional Padrão de Árvore de 3 Gerações
-        if len(cleaned_pedigree) >= 6:
-            # Lado Paterno (Coluna da Esquerda)
-            genealogia["avo_paterno"] = cleaned_pedigree[1] if len(cleaned_pedigree) > 1 else ""
-            genealogia["pai"] = cleaned_pedigree[3] if len(cleaned_pedigree) > 3 else cleaned_pedigree[0]
-            genealogia["avo_paterna"] = cleaned_pedigree[5] if len(cleaned_pedigree) > 5 else ""
-            
-            # Lado Materno (Coluna da Direita)
-            if len(cleaned_pedigree) >= 11:
-                genealogia["avo_materno"] = cleaned_pedigree[8] if len(cleaned_pedigree) > 8 else ""
-                genealogia["mae"] = cleaned_pedigree[10] if len(cleaned_pedigree) > 10 else cleaned_pedigree[-2]
-                if len(cleaned_pedigree) > 12:
-                    genealogia["avo_materna"] = cleaned_pedigree[12]
-            else:
-                genealogia["mae"] = cleaned_pedigree[-1]
-                if len(cleaned_pedigree) >= 8:
-                    genealogia["avo_materno"] = cleaned_pedigree[7]
+    try:
+        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+            if num_pagina >= len(pdf.pages):
+                return genealogia
+            page = pdf.pages[num_pagina]
+            width = page.width
+            height = page.height
+            mid_x = width / 2.0
 
-            return genealogia
+            words = page.extract_words()
+            
+            # Extrai apenas palavras dentro do retângulo do pedigree (28% a 82% da altura)
+            pedigree_words = [
+                w for w in words 
+                if height * 0.28 <= w['top'] <= height * 0.82
+                and not any(k in w['text'].upper() for k in ["PESO", "PONDERAL", "INSEMINADA", "PRENHE", "PARIDA", "PREV.", "FAZENDA", "TERRA"])
+            ]
+            
+            if not pedigree_words:
+                return genealogia
+
+            min_y = min(w['top'] for w in pedigree_words)
+            max_y = max(w['bottom'] for w in pedigree_words)
+            h_pedigree = max_y - min_y
+            
+            if h_pedigree <= 0:
+                return genealogia
+
+            # Divisão Estrita: Esquerda (Linha Paterna) e Direita (Linha Materna)
+            left_words = [w for w in pedigree_words if w['x1'] <= mid_x + 5]
+            right_words = [w for w in pedigree_words if w['x0'] >= mid_x - 5]
+
+            def extrair_texto_faixa(words_list, y_min_pct, y_max_pct):
+                target_words = [
+                    w for w in words_list 
+                    if min_y + h_pedigree * y_min_pct <= w['top'] <= min_y + h_pedigree * y_max_pct
+                ]
+                if not target_words:
+                    return ""
+                
+                target_words.sort(key=lambda w: (round(w['top'] / 7), w['x0']))
+                
+                linhas = []
+                linha_atual = []
+                last_top = None
+                
+                for w in target_words:
+                    if last_top is None or abs(w['top'] - last_top) < 7:
+                        linha_atual.append(w['text'])
+                    else:
+                        linhas.append(" ".join(linha_atual))
+                        linha_atual = [w['text']]
+                    last_top = w['top']
+                if linha_atual:
+                    linhas.append(" ".join(linha_atual))
+                
+                return " ".join(linhas).strip()
+
+            # LADO PATERNO (ESQUERDA)
+            genealogia["avo_paterno"] = extrair_texto_faixa(left_words, 0.10, 0.35)
+            genealogia["pai"] = extrair_texto_faixa(left_words, 0.35, 0.65)
+            genealogia["avo_paterna"] = extrair_texto_faixa(left_words, 0.65, 0.90)
+
+            # LADO MATERNO (DIREITA)
+            genealogia["avo_materno"] = extrair_texto_faixa(right_words, 0.10, 0.35)
+            genealogia["mae"] = extrair_texto_faixa(right_words, 0.35, 0.65)
+            genealogia["avo_materna"] = extrair_texto_faixa(right_words, 0.65, 0.90)
+
+    except Exception as e:
+        pass
 
     return genealogia
 
@@ -474,9 +465,11 @@ st.session_state.lote_idx = lista_lotes.index(lote_selecionado)
 
 num_lote = lista_lotes[st.session_state.lote_idx]
 dados_lote = mapa_oe.get(num_lote, {})
-genealogia = extrair_genealogia(texto_cat, num_lote) if texto_cat else {}
 
 pagina_catalogo, texto_pagina_catalogo = encontrar_pagina_catalogo(tuple(texto_cat), num_lote) if texto_cat and mostrar_preview else (-1, "")
+
+# EXTRAÇÃO ESPACIAL DE GENEALOGIA
+genealogia = extrair_genealogia_espacial(file_cat.getvalue(), pagina_catalogo) if (file_cat and pagina_catalogo >= 0) else {}
 
 # LAYOUT PRINCIPAL
 col_esquerda, col_direita = st.columns([1, 1])
@@ -506,7 +499,7 @@ with col_esquerda:
         with c3:
             st.markdown(f'<div class="animal-info"><strong>QTD:</strong><br>{dados_lote.get("qtd","-")}<br><br><strong>VENDEDOR:</strong><br>{dados_lote.get("vendedor","-")}</div>', unsafe_allow_html=True)
     
-    # GENEALOGIA EXTRAÍDA
+    # GENEALOGIA EXTRAÍDA DE FORMA ESPACIAL
     has_gen = any(v for v in genealogia.values())
     if has_gen:
         st.markdown("### 🧬 GENEALOGIA")
