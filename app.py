@@ -49,14 +49,26 @@ css_code = """
         font-size: 20px;
     }
     
-    /* BANNERS PRINCIPAIS DE REPRODUÇÃO E VENDA (TOPO) */
+    /* BANNERS PRINCIPAIS DE REPRODUÇÃO E VENDA */
+    .banner-parida {
+        background: linear-gradient(135deg, #7E22CE 0%, #581C87 100%);
+        color: #FFFFFF !important;
+        padding: 18px;
+        border-radius: 14px;
+        margin-bottom: 12px;
+        font-size: 22px !important;
+        font-weight: 900 !important;
+        text-align: center;
+        border: 3px solid #A855F7;
+        box-shadow: 0 4px 15px rgba(126, 34, 206, 0.4);
+    }
     .banner-prenhez {
         background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%);
         color: #FFFFFF !important;
         padding: 18px;
         border-radius: 14px;
         margin-bottom: 12px;
-        font-size: 24px !important;
+        font-size: 22px !important;
         font-weight: 900 !important;
         text-align: center;
         border: 3px solid #EF4444;
@@ -68,7 +80,7 @@ css_code = """
         padding: 18px;
         border-radius: 14px;
         margin-bottom: 12px;
-        font-size: 24px !important;
+        font-size: 22px !important;
         font-weight: 900 !important;
         text-align: center;
         border: 3px solid #F59E0B;
@@ -80,7 +92,7 @@ css_code = """
         padding: 16px;
         border-radius: 14px;
         margin-bottom: 12px;
-        font-size: 26px !important;
+        font-size: 24px !important;
         font-weight: 900 !important;
         text-align: center;
         border: 3px solid #FACC15;
@@ -105,16 +117,18 @@ css_code = """
         text-align: center;
     }
     
-    /* CARDS RÁPIDOS DA IA */
-    .ai-card {
-        background: linear-gradient(135deg, #312E81 0%, #1E1B4B 100%);
+    .ai-consideracoes-box {
+        background-color: #1E1B4B !important;
+        padding: 20px;
+        border-radius: 15px;
+        margin: 15px 0;
+        border-left: 8px solid #818CF8;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    .ai-consideracoes-box, .ai-consideracoes-box * {
         color: #FFFFFF !important;
-        padding: 14px 18px;
-        border-radius: 12px;
-        margin: 8px 0;
-        border-left: 6px solid #6366F1;
-        font-size: 18px !important;
-        font-weight: bold !important;
+        font-size: 16px !important;
+        line-height: 1.6 !important;
     }
 
     .gatilho-card {
@@ -193,7 +207,7 @@ def encontrar_pagina_catalogo(texto_cat_tuple, num_lote):
             return idx, pagina
     return -1, ""
 
-# ==================== EXTRAÇÃO REFORÇADA DA ORDEM DE ENTRADA ====================
+# ==================== EXTRAÇÃO DA ORDEM DE ENTRADA ====================
 @st.cache_data
 def extrair_dados_oe(texto_oe_tuple):
     texto_oe = list(texto_oe_tuple)
@@ -230,28 +244,22 @@ def extrair_dados_oe(texto_oe_tuple):
                         "linha_completa": linha_limpa
                     }
                     
-                    # Porcentagem de Venda
-                    m_porcentagem = re.search(r"(\d+%)\s*de:\s*(.+)", linha_limpa, re.IGNORECASE)
+                    m_porcentagem = re.search(r"(\d+%)\s*de:\s*(.+?)(?=\s+(?:parida|prenhe|prenha|inseminada|nelore|angus|girolando)|\s*$)", linha_limpa, re.IGNORECASE)
                     if m_porcentagem:
                         dados["porcentagem_venda"] = m_porcentagem.group(1)
                         dados["nome_animal"] = m_porcentagem.group(2).strip()
                     
-                    # Captura Reforçada de Reprodução (Inseminada / Prenhe)
-                    linha_lower = linha_limpa.lower()
-                    if "inseminada" in linha_lower:
-                        m_insem = re.search(r"inseminada\s+(?:do|de)?\s*([^|]+)", linha_limpa, re.IGNORECASE)
-                        dados["info_reproducao"] = f"INSEMINADA DO {m_insem.group(1).strip()}" if m_insem else "INSEMINADA"
-                        dados["tipo_reproducao"] = "inseminacao"
-                    
-                    if "prenhe" in linha_lower or "prenha" in linha_lower:
-                        m_prenhe = re.search(r"prenhe\s+(?:do|de)?\s*([^|]+?)(?:\s*\.\s*prev\.?\s*de\s*parto:?\s*([^|]+))?", linha_limpa, re.IGNORECASE)
-                        if m_prenhe:
-                            dados["info_reproducao"] = f"PRENHE DO {m_prenhe.group(1).strip()}"
-                            if m_prenhe.group(2):
-                                dados["info_reproducao"] += f" (PARTO: {m_prenhe.group(2).strip()})"
-                        else:
-                            dados["info_reproducao"] = "PRENHE"
-                        dados["tipo_reproducao"] = "prenhez"
+                    m_repro = re.search(r"\b(parida|prenhe|prenha|inseminada)\b.*", linha_limpa, re.IGNORECASE)
+                    if m_repro:
+                        texto_repro = m_repro.group(0).strip()
+                        dados["info_reproducao"] = texto_repro
+                        txt_low = texto_repro.lower()
+                        if "parida" in txt_low:
+                            dados["tipo_reproducao"] = "parida"
+                        elif "prenh" in txt_low:
+                            dados["tipo_reproducao"] = "prenhez"
+                        elif "inseminada" in txt_low:
+                            dados["tipo_reproducao"] = "inseminacao"
                     
                     if len(parts) >= 1: dados["qtd"] = parts[0]
                     if len(parts) >= 2: dados["idade"] = parts[1]
@@ -274,24 +282,58 @@ def extrair_dados_oe(texto_oe_tuple):
                     dados_por_lote[lt_num] = dados
     return sequencia, dados_por_lote
 
-# ==================== ANÁLISE OBJETIVA DA IA (CARDS RÁPIDOS) ====================
+# ==================== ENRIQUECIMENTO DE DADOS LENDO O CATÁLOGO ====================
+def enriquecer_dados_com_catalogo(dados_lote, texto_pagina_cat):
+    if not texto_pagina_cat or not dados_lote:
+        return dados_lote
+    
+    dados_atualizados = dados_lote.copy()
+    
+    # Se a info de reprodução não foi encontrada na O.E., busca na página do Catálogo
+    if not dados_atualizados.get("info_reproducao"):
+        linhas = texto_pagina_cat.split('\n')
+        for l in linhas:
+            l_clean = l.strip()
+            m_repro = re.search(r"\b(parida|prenhe|prenha|inseminada)\b.*", l_clean, re.IGNORECASE)
+            if m_repro:
+                texto_repro = m_repro.group(0).strip()
+                dados_atualizados["info_reproducao"] = texto_repro
+                txt_low = texto_repro.lower()
+                if "parida" in txt_low:
+                    dados_atualizados["tipo_reproducao"] = "parida"
+                elif "prenh" in txt_low:
+                    dados_atualizados["tipo_reproducao"] = "prenhez"
+                elif "inseminada" in txt_low:
+                    dados_atualizados["tipo_reproducao"] = "inseminacao"
+                break
+                
+    return dados_atualizados
+
+# ==================== ANÁLISE DA IA (LÊ OE + CATÁLOGO + IMAGEM) ====================
 @st.cache_data(show_spinner=False)
-def analisar_lote_com_gemini_cards(img_bytes, num_lote, dados_lote, api_key):
+def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, texto_pagina_cat, api_key):
     if not api_key:
-        return []
+        return "⚠️ Insira a GEMINI_API_KEY nos Secrets do Streamlit para ativar a análise inteligente."
 
     base64_image = base64.b64encode(img_bytes).decode('utf-8')
 
     prompt = f"""
-    Você é um leiloeiro de agronegócio em pista de alto ritmo ("jogo rápido").
-    Analise a imagem do LOTE {num_lote} no catálogo.
+    Você é um zootecnista e leiloeiro de elite no agronegócio.
+    Analise a imagem da página do catálogo, o texto extraído do catálogo e os dados da Ordem de Entrada:
+    
+    --- DADOS DA ORDEM DE ENTRADA E PISTA ---
+    - Animal/Produto: {dados_lote.get('nome_animal') or dados_lote.get('produto', 'N/A')}
+    - Oferta: {dados_lote.get('porcentagem_venda', '100%')}
+    - Status Reprodutivo (OE): {dados_lote.get('info_reproducao', 'N/A')}
+    - Categoria/Peso/Idade: {dados_lote.get('categoria', 'N/A')} - {dados_lote.get('peso', 'N/A')} - {dados_lote.get('idade', 'N/A')}
 
-    Gere EXATAMENTE 3 FRASES CURTISSIMAS (máximo 8 palavras cada) para falar no microfone.
-    - Card 1: Destaque da Linhagem/Genética (ex: "Linhagem forte em Landau e Bitelo").
-    - Card 2: Valorização da Reprodução/Ventre (ex: "Prenhez confirmada de touro provado").
-    - Card 3: Ponto forte de carcaça ou raça (ex: "Carcaça moderna e aprumos perfeitos").
+    --- TEXTO EXTRAÍDO DA PÁGINA DO CATÁLOGO ---
+    {texto_pagina_cat[:1000] if texto_pagina_cat else "Sem texto impresso"}
 
-    Separe cada frase por uma nova linha. Não use números nem introduções.
+    Gere um parecer direto em tópicos para leitura rápida no microfone:
+    1. 🏆 **Premiações e Raçadores da Linhagem**: Identifique na árvore genealógica touros e matrizes de destaque (ex: Landau, Bitelo, Rambo, Basco, Ludy) e mencione o valor genético.
+    2. 🧬 **Valorização do Acasalamento/Ventre**: Se parida, prenhe ou inseminada (detalhes do touro acasalado, prev. de parto ou bezerro ao pé).
+    3. 💡 **Frase Principal para o Microfone**: 1 argumento de alto impacto para valorizar o lote.
     """
 
     payload = {
@@ -309,19 +351,17 @@ def analisar_lote_com_gemini_cards(img_bytes, num_lote, dados_lote, api_key):
     for modelo in modelos:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key.strip()}"
-            response = requests.post(url, headers=headers, json=payload, timeout=12)
+            response = requests.post(url, headers=headers, json=payload, timeout=25)
             res_json = response.json()
 
             if response.status_code == 200 and 'candidates' in res_json:
-                text = res_json['candidates'][0]['content']['parts'][0]['text']
-                linhas = [l.strip('- *123.').strip() for l in text.split('\n') if l.strip()]
-                return linhas[:3]
+                return res_json['candidates'][0]['content']['parts'][0]['text']
         except:
             pass
 
-    return []
+    return "Não foi possível gerar a análise da IA para este lote."
 
-# ==================== GATILHOS ====================
+# ==================== GATILHOS DE CANTA ====================
 def gerar_gatilhos(dados_lote):
     gatilhos = []
     if not dados_lote:
@@ -395,15 +435,17 @@ lote_selecionado = st.selectbox("Ir para o lote:", options=lista_lotes, index=st
 st.session_state.lote_idx = lista_lotes.index(lote_selecionado)
 
 num_lote = lista_lotes[st.session_state.lote_idx]
-dados_lote = mapa_oe.get(num_lote, {})
+dados_lote_oe = mapa_oe.get(num_lote, {})
 
-pagina_catalogo, _ = encontrar_pagina_catalogo(tuple(texto_cat), num_lote) if texto_cat and mostrar_preview else (-1, "")
+pagina_catalogo, texto_pagina_catalogo = encontrar_pagina_catalogo(tuple(texto_cat), num_lote) if texto_cat else (-1, "")
 img_pagina_bytes = obter_imagem_bytes_pagina(file_cat.getvalue(), pagina_catalogo) if (file_cat and pagina_catalogo >= 0) else None
+
+# ENRIQUECE OS DADOS DA OE COM INFORMAÇÕES DO CATÁLOGO
+dados_lote = enriquecer_dados_com_catalogo(dados_lote_oe, texto_pagina_catalogo)
 
 # LAYOUT PRINCIPAL
 col_esquerda, col_direita = st.columns([1, 1])
 
-# COLUNA ESQUERDA (IMPACTO VISUAL E RAPIDEZ)
 with col_esquerda:
     lote_texto = f"LOTE {num_lote}"
     posicao_texto = dados_lote.get("posicao", f"{st.session_state.lote_idx + 1}º")
@@ -411,12 +453,15 @@ with col_esquerda:
     # 1. BANNER DO LOTE
     st.markdown(f'<div class="lote-destaque">{lote_texto}<br><span style="font-size: 24px;">{posicao_texto}</span></div>', unsafe_allow_html=True)
     
-    # 2. BANNERS DE ALERTA MÁXIMO (REPRODUÇÃO E % VENDA - RESTAURADOS NO TOPO)
+    # 2. BANNERS DE REPRODUÇÃO E OFERTA (LÊ OE + CATÁLOGO)
     if dados_lote.get("porcentagem_venda"):
-        st.markdown(f'<div class="banner-venda">💎 VENDA DE {dados_lote["porcentagem_venda"]} DO ANIMAL</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="banner-venda">💎 OFERTA DE {dados_lote["porcentagem_venda"]} DO ANIMAL</div>', unsafe_allow_html=True)
     
     if dados_lote.get("info_reproducao"):
-        if dados_lote.get("tipo_reproducao") == "prenhez":
+        tipo_rep = dados_lote.get("tipo_reproducao")
+        if tipo_rep == "parida":
+            st.markdown(f'<div class="banner-parida">🍼 {dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
+        elif tipo_rep == "prenhez":
             st.markdown(f'<div class="banner-prenhez">🤰 {dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
         else:
             st.markdown(f'<div class="banner-inseminacao">💉 {dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
@@ -424,7 +469,7 @@ with col_esquerda:
     if dados_lote.get("nome_animal"):
         st.markdown(f'<div class="nome-animal-box">🐂 {dados_lote["nome_animal"]}</div>', unsafe_allow_html=True)
     
-    # 3. FICHA RESUMIDA
+    # 3. FICHA TÉCNICA
     if dados_lote:
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -434,17 +479,19 @@ with col_esquerda:
         with c3:
             st.markdown(f'<div class="animal-info"><strong>QTD:</strong><br>{dados_lote.get("qtd","-")}<br><br><strong>VENDEDOR:</strong><br>{dados_lote.get("vendedor","-")}</div>', unsafe_allow_html=True)
     
-    # 4. CARDS RÁPIDOS DA IA (JOGO RÁPIDO)
+    # 4. PAINEL DE CONSIDERAÇÕES DA IA (LÊ OE + CATÁLOGO + IMAGEM)
     if img_pagina_bytes:
-        with st.spinner("⚡ IA gerando destaques de pista..."):
-            cards_ia = analisar_lote_com_gemini_cards(img_pagina_bytes, num_lote, dados_lote, api_key)
-            if cards_ia:
-                st.markdown("### ⚡ DESTAQUES DA IA (JOGO RÁPIDO)")
-                for card in cards_ia:
-                    st.markdown(f'<div class="ai-card">💡 {card}</div>', unsafe_allow_html=True)
+        with st.spinner("🤖 Gemini analisando a linhagem e reprodução..."):
+            analise_ia = analisar_lote_com_gemini(img_pagina_bytes, num_lote, dados_lote, texto_pagina_catalogo, api_key)
+            st.markdown(f'''
+            <div class="ai-consideracoes-box">
+                <h3 style="margin-top:0; color:#818CF8;">🤖 CONSIDERAÇÕES DA IA (LINHAGEM & REPRODUÇÃO)</h3>
+                <div>{analise_ia}</div>
+            </div>
+            ''', unsafe_allow_html=True)
 
-    # 5. GATILHOS DE CANTA
-    st.markdown("### 🎙️ GATILHOS DE MIC")
+    # 5. GATILHOS DE MIC
+    st.markdown("### 🎙️ GATILHOS PARA O MICROFONE")
     gatilhos = gerar_gatilhos(dados_lote)
     for g in gatilhos:
         st.markdown(f'<div class="gatilho-card">{g}</div>', unsafe_allow_html=True)
