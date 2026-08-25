@@ -138,6 +138,20 @@ css_code = """
 
 st.markdown(css_code, unsafe_allow_html=True)
 
+# ==================== BUSCA SEGURA DE API KEY ====================
+def obter_api_key():
+    # 1. Tenta Secrets do Streamlit
+    try:
+        if "GEMINI_API_KEY" in st.secrets:
+            return st.secrets["GEMINI_API_KEY"]
+        if "OPENAI_API_KEY" in st.secrets:
+            return st.secrets["OPENAI_API_KEY"]
+    except:
+        pass
+    
+    # 2. Tenta Variáveis de Ambiente
+    return os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+
 # ==================== PROCESSAMENTO DE PDF ====================
 @st.cache_data(ttl=7200, show_spinner=False)
 def processar_pdf(file_bytes):
@@ -256,15 +270,9 @@ def extrair_dados_oe(texto_oe_tuple):
 
 # ==================== ANÁLISE DE LINHAGEM VIA GOOGLE GEMINI ====================
 @st.cache_data(show_spinner=False)
-def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote):
-    api_key = None
-    try:
-        api_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
-    except:
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY")
-
-    if not api_key or not img_bytes:
-        return "Configure a chave da API Gemini no secrets.toml para ativar a análise inteligente."
+def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, api_key):
+    if not api_key:
+        return "Configure a chave GEMINI_API_KEY no painel de Secrets do Streamlit para ativar."
 
     try:
         genai.configure(api_key=api_key)
@@ -272,23 +280,23 @@ def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote):
         image = Image.open(BytesIO(img_bytes))
 
         prompt = f"""
-        Você é um especialista zootecnista e leiloeiro de elite.
-        Analise a imagem da folha do LOTE {num_lote} do catálogo e as informações de pista:
+        Você é um zootecnista e leiloeiro de elite.
+        Analise a imagem do LOTE {num_lote} no catálogo e os dados de pista:
         - Nome/Produto: {dados_lote.get('nome_animal') or dados_lote.get('produto', 'N/A')}
         - Venda: {dados_lote.get('porcentagem_venda', '100%')}
         - Reprodução/Touro: {dados_lote.get('info_reproducao', 'N/A')}
         - Categoria/Peso: {dados_lote.get('categoria', 'N/A')} - {dados_lote.get('peso', 'N/A')}
 
-        Gere uma análise direta, curta e de ALTO IMPACTO (em tópicos) para leitura rápida do leiloeiro:
-        1. 🏆 **Destaques da Linhagem & Premiações**: Identifique os raçadores/matrizes famosos presentes na árvore (ex: Bitelo, Landau, Ludy, Rambo, Basco, etc) e diga por que essa genética é premiada e importante.
-        2. 🧬 **Valorização da Reprodução / Pai do Bezerro**: Se fêmea prenhe, inseminada ou parida, avalie a qualidade do touro acasalado e o potencial do produto/barriga de ouro.
-        3. 💡 **Argumento de Pista**: 1 frase marcante para defender o preço do lote.
+        Forneça uma análise concisa em formato de tópicos:
+        1. 🏆 **Destaques da Linhagem & Premiações**: Raçadores e matrizes consagrados da árvore e o valor dessa genética.
+        2. 🧬 **Valorização da Reprodução**: Qualidade do touro acasalado e do ventre.
+        3. 💡 **Argumento de Pista**: 1 frase marcante de impacto para o microfone.
         """
 
         response = model.generate_content([prompt, image])
         return response.text
     except Exception as e:
-        return f"Erro na análise de IA: {str(e)}"
+        return f"Erro ao processar análise da IA: {str(e)}"
 
 # ==================== GATILHOS ====================
 def gerar_gatilhos(dados_lote):
@@ -313,6 +321,8 @@ def gerar_gatilhos(dados_lote):
 
 # ==================== INTERFACE PRINCIPAL ====================
 st.title("PAINEL DO LEILOEIRO PRO")
+
+api_key = obter_api_key()
 
 with st.sidebar:
     st.header("Arquivos")
@@ -397,10 +407,10 @@ with col_esquerda:
         with c3:
             st.markdown(f'<div class="animal-info"><strong>QTD:</strong><br>{dados_lote.get("qtd","-")}<br><br><strong>VENDEDOR:</strong><br>{dados_lote.get("vendedor","-")}</div>', unsafe_allow_html=True)
     
-    # 🤖 NOVA SEÇÃO: CONSIDERAÇÕES DA IA (POSICIONADA LOGO ACIMA DOS GATILHOS)
+    # 🤖 CONSIDERAÇÕES DA IA
     if img_pagina_bytes:
         with st.spinner("🤖 Gemini analisando a linhagem genética e reprodução..."):
-            analise_ia = analisar_lote_com_gemini(img_pagina_bytes, num_lote, dados_lote)
+            analise_ia = analisar_lote_com_gemini(img_pagina_bytes, num_lote, dados_lote, api_key)
             st.markdown(f'''
             <div class="ai-consideracoes-box">
                 <h3 style="margin-top:0; color:#818CF8;">🤖 CONSIDERAÇÕES DA IA (LINHAGEM & REPRODUÇÃO)</h3>
@@ -408,7 +418,7 @@ with col_esquerda:
             </div>
             ''', unsafe_allow_html=True)
 
-    # 🎙️ SEÇÃO DE GATILHOS
+    # 🎙️ GATILHOS
     st.markdown("### 🎙️ GATILHOS PARA O MICROFONE")
     gatilhos = gerar_gatilhos(dados_lote)
     for g in gatilhos:
