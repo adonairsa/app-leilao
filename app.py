@@ -1,11 +1,10 @@
 import streamlit as st
 import pdfplumber
 import re
-import json
-import base64
 import os
 from io import BytesIO
-from openai import OpenAI
+import google.generativeai as genai
+from PIL import Image
 
 st.set_page_config(
     page_title="PAINEL DO LEILOEIRO PRO",
@@ -78,42 +77,6 @@ css_code = """
         text-align: center;
         border: 3px solid #FF9800;
     }
-    .pai-box {
-        background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
-        color: white;
-        padding: 15px;
-        border-radius: 10px;
-        margin: 5px 0;
-        font-size: 20px;
-        font-weight: bold;
-    }
-    .mae-box {
-        background: linear-gradient(135deg, #E91E63 0%, #C2185B 100%);
-        color: white;
-        padding: 15px;
-        border-radius: 10px;
-        margin: 5px 0;
-        font-size: 20px;
-        font-weight: bold;
-    }
-    .avo-paterno-box {
-        background: linear-gradient(135deg, #64B5F6 0%, #42A5F5 100%);
-        color: white;
-        padding: 12px;
-        border-radius: 8px;
-        margin: 5px 0;
-        font-size: 16px;
-        font-weight: bold;
-    }
-    .avo-materno-box {
-        background: linear-gradient(135deg, #F48FB1 0%, #EC407A 100%);
-        color: white;
-        padding: 12px;
-        border-radius: 8px;
-        margin: 5px 0;
-        font-size: 16px;
-        font-weight: bold;
-    }
     .porcentagem-box {
         background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
         color: #333;
@@ -134,6 +97,15 @@ css_code = """
         font-size: 20px;
         font-weight: bold;
         text-align: center;
+    }
+    .ai-consideracoes-box {
+        background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%);
+        color: #F3F4F6;
+        padding: 20px;
+        border-radius: 15px;
+        margin: 15px 0;
+        border-left: 8px solid #818CF8;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     }
     .gatilho-card {
         background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
@@ -282,80 +254,44 @@ def extrair_dados_oe(texto_oe_tuple):
                     dados_por_lote[lt_num] = dados
     return sequencia, dados_por_lote
 
-# ==================== VISÃO COMPUTACIONAL COM OPENAI (GPT-4o) ====================
+# ==================== ANÁLISE DE LINHAGEM VIA GOOGLE GEMINI ====================
 @st.cache_data(show_spinner=False)
-def extrair_genealogia_visiao_ia(img_bytes, num_lote):
-    genealogia = {
-        "pai": "", "mae": "",
-        "avo_paterno": "", "avo_paterna": "",
-        "avo_materno": "", "avo_materna": ""
-    }
-    
-    # Busca a chave configurada no secrets.toml do Streamlit
+def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote):
     api_key = None
     try:
-        api_key = st.secrets["OPENAI_API_KEY"]
+        api_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
     except:
-        api_key = os.environ.get("OPENAI_API_KEY", None)
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY")
 
     if not api_key or not img_bytes:
-        return genealogia
+        return "Configure a chave da API Gemini no secrets.toml para ativar a análise inteligente."
 
     try:
-        client = OpenAI(api_key=api_key)
-        base64_image = base64.b64encode(img_bytes).decode('utf-8')
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        image = Image.open(BytesIO(img_bytes))
 
         prompt = f"""
-        Analise visualmente a imagem desta folha de catálogo de leilão do LOTE {num_lote}.
-        Localize a Árvore Genealógica (Pedigree) do animal e extraia com precisão visual:
+        Você é um especialista zootecnista e leiloeiro de elite.
+        Analise a imagem da folha do LOTE {num_lote} do catálogo e as informações de pista:
+        - Nome/Produto: {dados_lote.get('nome_animal') or dados_lote.get('produto', 'N/A')}
+        - Venda: {dados_lote.get('porcentagem_venda', '100%')}
+        - Reprodução/Touro: {dados_lote.get('info_reproducao', 'N/A')}
+        - Categoria/Peso: {dados_lote.get('categoria', 'N/A')} - {dados_lote.get('peso', 'N/A')}
 
-        - LINHAGEM PATERNA (Lado Esquerdo):
-          * pai: Nome completo do Pai (Banner dourado/destaque da esquerda)
-          * avo_paterno: Nome completo do Avô Paterno (acima do pai)
-          * avo_paterna: Nome completo da Avó Paterna (abaixo do pai)
-
-        - LINHAGEM MATERNA (Lado Direito):
-          * mae: Nome completo da Mãe (Banner dourado/destaque da direita)
-          * avo_materno: Nome completo do Avô Materno (acima da mãe)
-          * avo_materna: Nome completo da Avó Materna (abaixo da mãe)
-
-        Retorne ESTRITAMENTE um JSON válido com a seguinte estrutura de chaves:
-        {{
-            "pai": "...",
-            "mae": "...",
-            "avo_paterno": "...",
-            "avo_paterna": "...",
-            "avo_materno": "...",
-            "avo_materna": "..."
-        }}
+        Gere uma análise direta, curta e de ALTO IMPACTO (em tópicos) para leitura rápida do leiloeiro:
+        1. 🏆 **Destaques da Linhagem & Premiações**: Identifique os raçadores/matrizes famosos presentes na árvore (ex: Bitelo, Landau, Ludy, Rambo, Basco, etc) e diga por que essa genética é premiada e importante.
+        2. 🧬 **Valorização da Reprodução / Pai do Bezerro**: Se fêmea prenhe, inseminada ou parida, avalie a qualidade do touro acasalado e o potencial do produto/barriga de ouro.
+        3. 💡 **Argumento de Pista**: 1 frase marcante para defender o preço do lote.
         """
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            },
-                        },
-                    ],
-                }
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.0
-        )
-        data = json.loads(response.choices[0].message.content)
-        return data
+        response = model.generate_content([prompt, image])
+        return response.text
     except Exception as e:
-        return genealogia
+        return f"Erro na análise de IA: {str(e)}"
 
 # ==================== GATILHOS ====================
-def gerar_gatilhos(dados_lote, genealogia=None):
+def gerar_gatilhos(dados_lote):
     gatilhos = []
     if not dados_lote:
         return ["ANIMAL SELECIONADO!", "QUALIDADE GARANTIDA!", "OPORTUNIDADE NA PISTA!"]
@@ -371,9 +307,6 @@ def gerar_gatilhos(dados_lote, genealogia=None):
         gatilhos.append("FÊMEA DE CABECEIRA E FUTURO DO REBANHO!")
     if "vaca" in categoria:
         gatilhos.append("MATRIZ COMPROVADA E PRODUTIVA!")
-    
-    if genealogia and genealogia.get("pai") and genealogia.get("mae"):
-        gatilhos.append(f"PEDIGREE: {genealogia['pai']} x {genealogia['mae']}!")
         
     gatilhos.extend(["PROCEDÊNCIA COMPROVADA!", "LIQUIDEZ IMEDIATA NA PISTA!"])
     return gatilhos[:5]
@@ -434,17 +367,12 @@ num_lote = lista_lotes[st.session_state.lote_idx]
 dados_lote = mapa_oe.get(num_lote, {})
 
 pagina_catalogo, _ = encontrar_pagina_catalogo(tuple(texto_cat), num_lote) if texto_cat and mostrar_preview else (-1, "")
-
-# OBTÉM OS BYTES DA IMAGEM DA PÁGINA DO CATÁLOGO
 img_pagina_bytes = obter_imagem_bytes_pagina(file_cat.getvalue(), pagina_catalogo) if (file_cat and pagina_catalogo >= 0) else None
-
-# EXTRAÇÃO VISUAL VIA OPENAI (GPT-4o-mini Vision)
-genealogia = extrair_genealogia_visiao_ia(img_pagina_bytes, num_lote) if img_pagina_bytes else {}
 
 # LAYOUT PRINCIPAL
 col_esquerda, col_direita = st.columns([1, 1])
 
-# COLUNA ESQUERDA (DADOS PRINCIPAIS E GENEALOGIA)
+# COLUNA ESQUERDA (DADOS PRINCIPAIS, CONSIDERAÇÕES DA IA E GATILHOS)
 with col_esquerda:
     lote_texto = f"LOTE {num_lote}"
     posicao_texto = dados_lote.get("posicao", f"{st.session_state.lote_idx + 1}º")
@@ -469,36 +397,20 @@ with col_esquerda:
         with c3:
             st.markdown(f'<div class="animal-info"><strong>QTD:</strong><br>{dados_lote.get("qtd","-")}<br><br><strong>VENDEDOR:</strong><br>{dados_lote.get("vendedor","-")}</div>', unsafe_allow_html=True)
     
-    # GENEALOGIA EXTRAÍDA PELA IA VISUAL
-    has_gen = any(v for v in genealogia.values())
-    if has_gen:
-        st.markdown("### 🧬 GENEALOGIA (EXTRAÇÃO VISUAL POR IA)")
-        col_pai, col_mae = st.columns(2)
-        
-        with col_pai:
-            if genealogia.get("pai"):
-                st.markdown(f'<div class="pai-box"><strong>PAI:</strong><br>{genealogia["pai"]}</div>', unsafe_allow_html=True)
-            col_avop1, col_avop2 = st.columns(2)
-            with col_avop1:
-                if genealogia.get("avo_paterno"):
-                    st.markdown(f'<div class="avo-paterno-box"><strong>AVÔ PAT:</strong><br>{genealogia["avo_paterno"]}</div>', unsafe_allow_html=True)
-            with col_avop2:
-                if genealogia.get("avo_paterna"):
-                    st.markdown(f'<div class="avo-paterno-box"><strong>AVÓ PAT:</strong><br>{genealogia["avo_paterna"]}</div>', unsafe_allow_html=True)
-        
-        with col_mae:
-            if genealogia.get("mae"):
-                st.markdown(f'<div class="mae-box"><strong>MÃE:</strong><br>{genealogia["mae"]}</div>', unsafe_allow_html=True)
-            col_avom1, col_avom2 = st.columns(2)
-            with col_avom1:
-                if genealogia.get("avo_materno"):
-                    st.markdown(f'<div class="avo-materno-box"><strong>AVÔ MAT:</strong><br>{genealogia["avo_materno"]}</div>', unsafe_allow_html=True)
-            with col_avom2:
-                if genealogia.get("avo_materna"):
-                    st.markdown(f'<div class="avo-materno-box"><strong>AVÓ MAT:</strong><br>{genealogia["avo_materna"]}</div>', unsafe_allow_html=True)
+    # 🤖 NOVA SEÇÃO: CONSIDERAÇÕES DA IA (POSICIONADA LOGO ACIMA DOS GATILHOS)
+    if img_pagina_bytes:
+        with st.spinner("🤖 Gemini analisando a linhagem genética e reprodução..."):
+            analise_ia = analisar_lote_com_gemini(img_pagina_bytes, num_lote, dados_lote)
+            st.markdown(f'''
+            <div class="ai-consideracoes-box">
+                <h3 style="margin-top:0; color:#818CF8;">🤖 CONSIDERAÇÕES DA IA (LINHAGEM & REPRODUÇÃO)</h3>
+                {analise_ia}
+            </div>
+            ''', unsafe_allow_html=True)
 
-    st.markdown("### 🎙️ GATILHOS")
-    gatilhos = gerar_gatilhos(dados_lote, genealogia)
+    # 🎙️ SEÇÃO DE GATILHOS
+    st.markdown("### 🎙️ GATILHOS PARA O MICROFONE")
+    gatilhos = gerar_gatilhos(dados_lote)
     for g in gatilhos:
         st.markdown(f'<div class="gatilho-card">{g}</div>', unsafe_allow_html=True)
 
