@@ -14,7 +14,7 @@ st.set_page_config(
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}
 )
 
-# ==================== CSS ====================
+# ==================== CSS COM ALTO CONTRASTE ====================
 css_code = """
 <style>
     #MainMenu {visibility: hidden; display: none;}
@@ -99,13 +99,17 @@ css_code = """
         text-align: center;
     }
     .ai-consideracoes-box {
-        background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%);
-        color: #F3F4F6;
+        background-color: #1E1B4B !important;
         padding: 20px;
         border-radius: 15px;
         margin: 15px 0;
         border-left: 8px solid #818CF8;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    .ai-consideracoes-box, .ai-consideracoes-box * {
+        color: #FFFFFF !important;
+        font-size: 16px !important;
+        line-height: 1.6 !important;
     }
     .gatilho-card {
         background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
@@ -140,7 +144,6 @@ st.markdown(css_code, unsafe_allow_html=True)
 
 # ==================== BUSCA SEGURA DE API KEY ====================
 def obter_api_key():
-    # 1. Tenta Secrets do Streamlit
     try:
         if "GEMINI_API_KEY" in st.secrets:
             return st.secrets["GEMINI_API_KEY"]
@@ -148,8 +151,6 @@ def obter_api_key():
             return st.secrets["OPENAI_API_KEY"]
     except:
         pass
-    
-    # 2. Tenta Variáveis de Ambiente
     return os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY")
 
 # ==================== PROCESSAMENTO DE PDF ====================
@@ -272,7 +273,10 @@ def extrair_dados_oe(texto_oe_tuple):
 @st.cache_data(show_spinner=False)
 def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, api_key):
     if not api_key:
-        return "Configure a chave GEMINI_API_KEY no painel de Secrets do Streamlit para ativar."
+        return "⚠️ Chave não encontrada. Insira GEMINI_API_KEY nos Secrets do Streamlit."
+
+    if not api_key.startswith("AIzaSy"):
+        return "⚠️ A chave cadastrada não é do Google AI Studio. Crie uma chave válida em: https://aistudio.google.com/app/apikey (chaves válidas começam com 'AIzaSy')."
 
     try:
         genai.configure(api_key=api_key)
@@ -280,7 +284,7 @@ def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, api_key):
         image = Image.open(BytesIO(img_bytes))
 
         prompt = f"""
-        Você é um zootecnista e leiloeiro de elite.
+        Você é um especialista zootecnista e leiloeiro de elite.
         Analise a imagem do LOTE {num_lote} no catálogo e os dados de pista:
         - Nome/Produto: {dados_lote.get('nome_animal') or dados_lote.get('produto', 'N/A')}
         - Venda: {dados_lote.get('porcentagem_venda', '100%')}
@@ -414,7 +418,7 @@ with col_esquerda:
             st.markdown(f'''
             <div class="ai-consideracoes-box">
                 <h3 style="margin-top:0; color:#818CF8;">🤖 CONSIDERAÇÕES DA IA (LINHAGEM & REPRODUÇÃO)</h3>
-                {analise_ia}
+                <div>{analise_ia}</div>
             </div>
             ''', unsafe_allow_html=True)
 
