@@ -269,57 +269,68 @@ def extrair_dados_oe(texto_oe_tuple):
                     dados_por_lote[lt_num] = dados
     return sequencia, dados_por_lote
 
-# ==================== ANÁLISE DIRETA VIA REST API (COMPATÍVEL COM CHAVES AQ...) ====================
+# ==================== ANÁLISE COM TESTE AUTOMÁTICO DE MODELOS ====================
 @st.cache_data(show_spinner=False)
 def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, api_key):
     if not api_key:
         return "⚠️ Chave GEMINI_API_KEY não encontrada nos Secrets do Streamlit."
 
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key.strip()}"
-        headers = {"Content-Type": "application/json"}
-        
-        base64_image = base64.b64encode(img_bytes).decode('utf-8')
+    base64_image = base64.b64encode(img_bytes).decode('utf-8')
 
-        prompt = f"""
-        Você é um especialista zootecnista e leiloeiro de elite.
-        Analise a imagem do LOTE {num_lote} no catálogo e os dados de pista:
-        - Nome/Produto: {dados_lote.get('nome_animal') or dados_lote.get('produto', 'N/A')}
-        - Venda: {dados_lote.get('porcentagem_venda', '100%')}
-        - Reprodução/Touro: {dados_lote.get('info_reproducao', 'N/A')}
-        - Categoria/Peso: {dados_lote.get('categoria', 'N/A')} - {dados_lote.get('peso', 'N/A')}
+    prompt = f"""
+    Você é um especialista zootecnista e leiloeiro de elite.
+    Analise a imagem do LOTE {num_lote} no catálogo e os dados de pista:
+    - Nome/Produto: {dados_lote.get('nome_animal') or dados_lote.get('produto', 'N/A')}
+    - Venda: {dados_lote.get('porcentagem_venda', '100%')}
+    - Reprodução/Touro: {dados_lote.get('info_reproducao', 'N/A')}
+    - Categoria/Peso: {dados_lote.get('categoria', 'N/A')} - {dados_lote.get('peso', 'N/A')}
 
-        Forneça uma análise concisa em formato de tópicos:
-        1. 🏆 **Destaques da Linhagem & Premiações**: Raçadores e matrizes consagrados da árvore e o valor dessa genética.
-        2. 🧬 **Valorização da Reprodução**: Qualidade do touro acasalado e do ventre.
-        3. 💡 **Argumento de Pista**: 1 frase marcante de impacto para o microfone.
-        """
+    Forneça uma análise concisa em formato de tópicos:
+    1. 🏆 **Destaques da Linhagem & Premiações**: Raçadores e matrizes consagrados da árvore e o valor dessa genética.
+    2. 🧬 **Valorização da Reprodução**: Qualidade do touro acasalado e do ventre.
+    3. 💡 **Argumento de Pista**: 1 frase marcante de impacto para o microfone.
+    """
 
-        payload = {
-            "contents": [{
-                "parts": [
-                    {"text": prompt},
-                    {
-                        "inline_data": {
-                            "mime_type": "image/jpeg",
-                            "data": base64_image
-                        }
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": base64_image
                     }
-                ]
-            }]
-        }
+                }
+            ]
+        }]
+    }
 
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        res_json = response.json()
+    # Lista de modelos suportados para teste automático em ordem de preferência
+    modelos = [
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro"
+    ]
 
-        if response.status_code == 200:
-            return res_json['candidates'][0]['content']['parts'][0]['text']
-        else:
-            err_msg = res_json.get('error', {}).get('message', response.text)
-            return f"Erro na requisição ({response.status_code}): {err_msg}"
+    headers = {"Content-Type": "application/json"}
+    erros_acumulados = []
 
-    except Exception as e:
-        return f"Erro ao processar análise da IA: {str(e)}"
+    for modelo in modelos:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key.strip()}"
+            response = requests.post(url, headers=headers, json=payload, timeout=25)
+            res_json = response.json()
+
+            if response.status_code == 200 and 'candidates' in res_json:
+                return res_json['candidates'][0]['content']['parts'][0]['text']
+            else:
+                err_msg = res_json.get('error', {}).get('message', response.text)
+                erros_acumulados.append(f"{modelo}: {err_msg}")
+        except Exception as e:
+            erros_acumulados.append(f"{modelo}: {str(e)}")
+
+    return f"Erro na requisição. Detalhes: {' | '.join(erros_acumulados[:2])}"
 
 # ==================== GATILHOS ====================
 def gerar_gatilhos(dados_lote):
