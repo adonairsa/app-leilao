@@ -3,7 +3,6 @@ import pdfplumber
 import re
 from io import BytesIO
 
-# ==================== CONFIGURAÇÃO INICIAL ====================
 st.set_page_config(
     page_title="PAINEL DO LEILOEIRO PRO",
     page_icon="🐂",
@@ -19,59 +18,45 @@ st.set_page_config(
 # ==================== ESCONDER MENU E RODAPÉ ====================
 st.markdown("""
 <style>
-    /* Esconde o menu hamburguer */
     #MainMenu {
         visibility: hidden;
         display: none;
     }
     
-    /* Esconde o rodapé */
     footer {
         visibility: hidden;
         display: none;
     }
     
-    /* Esconde o botão de deploy */
     [data-testid="stToolbar"] {
         display: none;
     }
     
-    /* Esconde o ícone do Streamlit */
     [data-testid="stDecoration"] {
         display: none;
     }
     
-    /* Esconde o "Made with Streamlit" */
     .viewerBadge_container__1QSob {
         display: none !important;
     }
     
-    /* Esconde o link do Streamlit */
     a[href*="streamlit"] {
         display: none !important;
     }
     
-    /* Remove espaço extra no topo */
     .block-container {
         padding-top: 1rem;
         padding-bottom: 0rem;
     }
     
-    /* Esconde header padrão */
     header[data-testid="stHeader"] {
         display: none;
     }
     
-    /* Ajusta margens */
     .main {
         padding: 0;
     }
-</style>
-""", unsafe_allow_html=True)
-
-# ==================== CSS PARA TABLET ====================
-st.markdown("""
-<style>
+    
     .lote-destaque {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -252,7 +237,7 @@ def extrair_dados_oe(texto_oe_tuple):
     for pagina in texto_oe:
         linhas = pagina.split('\n')
         
-        for linha_idx, linha in enumerate(linhas):
+        for linha in linhas:
             linha_limpa = linha.strip()
             
             if not linha_limpa:
@@ -671,7 +656,8 @@ if st.session_state.lote_idx >= len(lista_lotes):
     st.session_state.lote_idx = 0
 
 # ==================== NAVEGAÇÃO ====================
-st.markdown(f'<div class="ordem-indicador">{ordem_atual} | Lote {st.session_state.lote_idx + 1} de {len(lista_lotes)}</div>', unsafe_allow_html=True)
+ordem_texto = f"{ordem_atual} | Lote {st.session_state.lote_idx + 1} de {len(lista_lotes)}"
+st.markdown(f'<div class="ordem-indicador">{ordem_texto}</div>', unsafe_allow_html=True)
 
 col_prev, col_next = st.columns(2)
 
@@ -695,51 +681,62 @@ st.session_state.lote_idx = lista_lotes.index(lote_selecionado)
 
 num_lote = lista_lotes[st.session_state.lote_idx]
 dados_lote = mapa_oe.get(num_lote, {})
-
-# Extrai genealogia
 genealogia = extrair_genealogia(texto_cat, num_lote) if texto_cat else {}
 
 # ==================== PAINEL PRINCIPAL ====================
-st.markdown(f'<div class="lote-destaque">LOTE {num_lote}<br><span style="font-size: 24px;">{dados_lote.get("posicao", f"{st.session_state.lote_idx + 1}º")} A ENTRAR</span></div>', unsafe_allow_html=True)
+lote_texto = f"LOTE {num_lote}"
+posicao_texto = dados_lote.get("posicao", f"{st.session_state.lote_idx + 1}º")
+st.markdown(f'<div class="lote-destaque">{lote_texto}<br><span style="font-size: 24px;">{posicao_texto} A ENTRAR</span></div>', unsafe_allow_html=True)
 
 # Porcentagem de venda
 if dados_lote.get("porcentagem_venda"):
-    st.markdown(f'<div class="porcentagem-box">VENDA DE {dados_lote["porcentagem_venda"]} DO ANIMAL</div>', unsafe_allow_html=True)
+    pct_texto = f"VENDA DE {dados_lote['porcentagem_venda']} DO ANIMAL"
+    st.markdown(f'<div class="porcentagem-box">{pct_texto}</div>', unsafe_allow_html=True)
 
 # Nome do animal
 if dados_lote.get("nome_animal"):
-    st.markdown(f'<div class="nome-animal-box">🐂 {dados_lote["nome_animal"]}</div>', unsafe_allow_html=True)
+    nome_texto = dados_lote["nome_animal"]
+    st.markdown(f'<div class="nome-animal-box">🐂 {nome_texto}</div>', unsafe_allow_html=True)
 
 # Informações de reprodução
 if dados_lote.get("info_reproducao"):
+    repro_texto = dados_lote["info_reproducao"]
     if dados_lote.get("tipo_reproducao") == "prenhez":
-        st.markdown(f'<div class="prenhez-box">{dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="prenhez-box">{repro_texto}</div>', unsafe_allow_html=True)
     elif dados_lote.get("tipo_reproducao") == "inseminacao":
-        st.markdown(f'<div class="inseminacao-box">{dados_lote["info_reproducao"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="inseminacao-box">{repro_texto}</div>', unsafe_allow_html=True)
 elif genealogia.get("info_reproducao"):
-    if "prenhe" in genealogia["info_reproducao"].lower():
-        st.markdown(f'<div class="prenhez-box">{genealogia["info_reproducao"]}</div>', unsafe_allow_html=True)
-    elif "inseminada" in genealogia["info_reproducao"].lower():
-        st.markdown(f'<div class="inseminacao-box">{genealogia["info_reproducao"]}</div>', unsafe_allow_html=True)
+    repro_texto = genealogia["info_reproducao"]
+    if "prenhe" in repro_texto.lower():
+        st.markdown(f'<div class="prenhez-box">{repro_texto}</div>', unsafe_allow_html=True)
+    elif "inseminada" in repro_texto.lower():
+        st.markdown(f'<div class="inseminacao-box">{repro_texto}</div>', unsafe_allow_html=True)
 
 if dados_lote:
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("### DADOS DO ANIMAL")
-        st.markdown(f'<div class="animal-info"><strong>CATEGORIA:</strong><br>{dados_lote.get("categoria", "-")}<br><br><strong>RAÇA:</strong><br>{dados_lote.get("raca", "-")}</div>', unsafe_allow_html=True)
+        cat_texto = dados_lote.get("categoria", "-")
+        raca_texto = dados_lote.get("raca", "-")
+        st.markdown(f'<div class="animal-info"><strong>CATEGORIA:</strong><br>{cat_texto}<br><br><strong>RAÇA:</strong><br>{raca_texto}</div>', unsafe_allow_html=True)
     
     with col2:
         st.markdown("### CARACTERÍSTICAS")
-        st.markdown(f'<div class="animal-info"><strong>PESO:</strong><br>{dados_lote.get("peso", "-")}<br><br><strong>IDADE:</strong><br>{dados_lote.get("idade", "-")}</div>', unsafe_allow_html=True)
+        peso_texto = dados_lote.get("peso", "-")
+        idade_texto = dados_lote.get("idade", "-")
+        st.markdown(f'<div class="animal-info"><strong>PESO:</strong><br>{peso_texto}<br><br><strong>IDADE:</strong><br>{idade_texto}</div>', unsafe_allow_html=True)
     
     with col3:
         st.markdown("### QUANTIDADE")
-        st.markdown(f'<div class="animal-info"><strong>QTD:</strong><br>{dados_lote.get("qtd", "-")}<br><br><strong>VENDEDOR:</strong><br>{dados_lote.get("vendedor", "-")}</div>', unsafe_allow_html=True)
+        qtd_texto = dados_lote.get("qtd", "-")
+        vend_texto = dados_lote.get("vendedor", "-")
+        st.markdown(f'<div class="animal-info"><strong>QTD:</strong><br>{qtd_texto}<br><br><strong>VENDEDOR:</strong><br>{vend_texto}</div>', unsafe_allow_html=True)
     
     if dados_lote.get("produto"):
+        prod_texto = dados_lote["produto"]
         st.markdown("### PRODUTO/ANIMAL")
-        st.markdown(f'<div class="animal-info">{dados_lote["produto"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="animal-info">{prod_texto}</div>', unsafe_allow_html=True)
 
 # Genealogia
 if genealogia:
@@ -749,24 +746,30 @@ if genealogia:
     
     with col_pai:
         if genealogia.get("pai"):
-            st.markdown(f'<div class="pai-box"><strong>PAI:</strong><br>{genealogia["pai"]}</div>', unsafe_allow_html=True)
+            pai_texto = genealogia["pai"]
+            st.markdown(f'<div class="pai-box"><strong>PAI:</strong><br>{pai_texto}</div>', unsafe_allow_html=True)
         
         col_avo_p, col_avo_p2 = st.columns(2)
         with col_avo_p:
             if genealogia.get("avo_paterno"):
-                st.markdown(f'<div class="avo-paterno-box"><strong>AVÔ PATERNO:</strong><br>{genealogia["avo_paterno"]}</div>', unsafe_allow_html=True)
+                avo_p_texto = genealogia["avo_paterno"]
+                st.markdown(f'<div class="avo-paterno-box"><strong>AVÔ PATERNO:</strong><br>{avo_p_texto}</div>', unsafe_allow_html=True)
         with col_avo_p2:
             if genealogia.get("avo_paterna"):
-                st.markdown(f'<div class="avo-paterno-box"><strong>AVÓ PATERNA:</strong><br>{genealogia["avo_paterna"]}</div>', unsafe_allow_html=True)
+                avo_p2_texto = genealogia["avo_paterna"]
+                st.markdown(f'<div class="avo-paterno-box"><strong>AVÓ PATERNA:</strong><br>{avo_p2_texto}</div>', unsafe_allow_html=True)
     
     with col_mae:
         if genealogia.get("mae"):
-            st.markdown(f'<div class="mae-box"><strong>MÃE:</strong><br>{genealogia["mae"]}</div>', unsafe_allow_html=True)
+            mae_texto = genealogia["mae"]
+            st.markdown(f'<div class="mae-box"><strong>MÃE:</strong><br>{mae_texto}</div>', unsafe_allow_html=True)
         
         col_avo_m, col_avo_m2 = st.columns(2)
         with col_avo_m:
             if genealogia.get("avo_materno"):
-                st.markdown(f'<div class="avo-materno-box"><strong>AVÔ MATERNO:</strong><br>{genealogia["avo_materno"]}</div>', unsafe_allow_html=True)
+                avo_m_texto = genealogia["avo_materno"]
+                st.markdown(f'<div class="avo-materno-box"><strong>AVÔ MATERNO:</strong><br>{avo_m_texto}</div>', unsafe_allow_html=True)
         with col_avo_m2:
             if genealogia.get("avo_materna"):
-                st.markdown(f'<div class="avo-materno-box"><strong>AVÓ MAT
+                avo_m2_texto = genealogia["avo_materna"]
+                st.markdown(f'<div
