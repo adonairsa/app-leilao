@@ -119,7 +119,7 @@ css_code = """
     
     .ai-consideracoes-box {
         background-color: #1E1B4B !important;
-        padding: 20px;
+        padding: 18px;
         border-radius: 15px;
         margin-top: 15px;
         border-left: 8px solid #818CF8;
@@ -127,8 +127,8 @@ css_code = """
     }
     .ai-consideracoes-box, .ai-consideracoes-box * {
         color: #FFFFFF !important;
-        font-size: 16px !important;
-        line-height: 1.6 !important;
+        font-size: 17px !important;
+        line-height: 1.5 !important;
     }
 
     .gatilho-card {
@@ -308,29 +308,30 @@ def enriquecer_dados_com_catalogo(dados_lote, texto_pagina_cat):
                 
     return dados_atualizados
 
-# ==================== ANÁLISE ROBUSTA DA IA (GEMINI MULTIMODAL / TEXTO) ====================
+# ==================== ANÁLISE ULTRA-OBJETIVA DA IA (JOGO RÁPIDO) ====================
 @st.cache_data(show_spinner=False)
 def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, texto_pagina_cat, api_key):
     if not api_key:
         return "⚠️ Insira a GEMINI_API_KEY nos Secrets do Streamlit para ativar a análise inteligente."
 
     prompt_text = f"""
-    Você é um zootecnista e leiloeiro de elite no agronegócio.
-    Analise as informações do LOTE {num_lote}:
+    Você é um leiloeiro de agronegócio em pista de altíssima velocidade.
+    Seja EXTREMAMENTE DIRETO, CURTO E OBJETIVO.
 
-    --- DADOS DE PISTA E ORDEM DE ENTRADA ---
-    - Animal/Produto: {dados_lote.get('nome_animal') or dados_lote.get('produto', 'N/A')}
-    - Oferta: {dados_lote.get('porcentagem_venda', '100%')}
+    LOTE {num_lote}:
+    - Produto: {dados_lote.get('nome_animal') or dados_lote.get('produto', 'N/A')}
     - Status Reprodutivo: {dados_lote.get('info_reproducao', 'N/A')}
-    - Categoria/Peso/Idade: {dados_lote.get('categoria', 'N/A')} - {dados_lote.get('peso', 'N/A')} - {dados_lote.get('idade', 'N/A')}
+    - Categoria/Peso: {dados_lote.get('categoria', 'N/A')} - {dados_lote.get('peso', 'N/A')}
 
-    --- TEXTO DA PÁGINA DO CATÁLOGO ---
-    {texto_pagina_cat[:1200] if texto_pagina_cat else "Sem texto impresso"}
+    TEXTO DO CATÁLOGO:
+    {texto_pagina_cat[:1000] if texto_pagina_cat else "N/A"}
 
-    Gere um parecer direto para o leiloeiro usar no microfone:
-    1. 🏆 **Premiações e Raçadores da Linhagem**: Identifique na árvore genealógica touros e matrizes de destaque (ex: Landau, Bitelo, Rambo, Basco, Ludy, Brado, Fajardo) e comente a força genética.
-    2. 🧬 **Valorização do Acasalamento/Ventre**: Se parida, prenhe ou inseminada, comente o potencial do touro acasalado e o valor do bezerro ou barriga.
-    3. 💡 **Frase de Impacto para o Microfone**: 1 argumento curto e forte para acelerar as apostas.
+    REGRA RÍGIDA DE FORMATO:
+    Responda usando APENAS 3 tópicos de NO MÁXIMO 1 LINHA cada. Sem introduções nem textos longos:
+
+    🏆 **Genética**: [Cite diretamente os 2 ou 3 raçadores/matrizes mais famosos da árvore ex: Landau da Di Genio x Brado]
+    🧬 **Ventre**: [Destaque direto do acasalamento do ventre ou bezerro ao pé]
+    💡 **Microfone**: [Frase de efeito ultra-curta de 5 a 8 palavras para vender o lote]
     """
 
     api_key_clean = api_key.strip()
@@ -352,7 +353,7 @@ def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, texto_pagina_cat, 
             for mod in modelos:
                 try:
                     url = f"https://generativelanguage.googleapis.com/{ver}/models/{mod}:generateContent?key={api_key_clean}"
-                    response = requests.post(url, headers=headers, json=payload_img, timeout=20)
+                    response = requests.post(url, headers=headers, json=payload_img, timeout=15)
                     if response.status_code == 200:
                         res_json = response.json()
                         if 'candidates' in res_json and res_json['candidates']:
@@ -360,7 +361,7 @@ def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, texto_pagina_cat, 
                 except:
                     pass
 
-    # 2. FALLBACK: TENTA ENVIO APENAS DE TEXTO (GARANTE RESULTADO MESMO SE A IMAGEM FALHAR)
+    # 2. FALLBACK APENAS TEXTO
     payload_txt = {
         "contents": [{
             "parts": [{"text": prompt_text}]
@@ -370,7 +371,7 @@ def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, texto_pagina_cat, 
         for mod in modelos:
             try:
                 url = f"https://generativelanguage.googleapis.com/{ver}/models/{mod}:generateContent?key={api_key_clean}"
-                response = requests.post(url, headers=headers, json=payload_txt, timeout=20)
+                response = requests.post(url, headers=headers, json=payload_txt, timeout=15)
                 if response.status_code == 200:
                     res_json = response.json()
                     if 'candidates' in res_json and res_json['candidates']:
@@ -378,7 +379,7 @@ def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, texto_pagina_cat, 
             except:
                 pass
 
-    return "Não foi possível conectar à API do Gemini no momento. Verifique se a chave cadastrada nos Secrets está ativa."
+    return "Análise temporariamente indisponível. Verifique a chave nos Secrets."
 
 # ==================== GATILHOS DE CANTA ====================
 def gerar_gatilhos(dados_lote):
@@ -515,13 +516,13 @@ with col_direita:
     elif mostrar_preview and not file_cat:
         st.info("Suba o arquivo do catálogo no menu lateral para abrir o preview visual.")
 
-    # 🤖 CONSIDERAÇÕES DA IA (POSICIONADO EXATAMENTE ABAIXO DA IMAGEM DO CATÁLOGO)
+    # 🤖 CONSIDERAÇÕES DA IA (POSICIONADO EXATAMENTE ABAIXO DA IMAGEM DO CATÁLOGO COM RESUMO ULTRA-OBJETIVO)
     if img_pagina_bytes or texto_pagina_catalogo:
-        with st.spinner("🤖 Gemini analisando a linhagem e reprodução..."):
+        with st.spinner("⚡ IA gerando destaques rápidos de pista..."):
             analise_ia = analisar_lote_com_gemini(img_pagina_bytes, num_lote, dados_lote, texto_pagina_catalogo, api_key)
             st.markdown(f'''
             <div class="ai-consideracoes-box">
-                <h3 style="margin-top:0; color:#818CF8;">🤖 CONSIDERAÇÕES DA IA (LINHAGEM & REPRODUÇÃO)</h3>
+                <h3 style="margin-top:0; color:#818CF8; font-size:18px;">⚡ PARECER DA IA (JOGO RÁPIDO)</h3>
                 <div>{analise_ia}</div>
             </div>
             ''', unsafe_allow_html=True)
