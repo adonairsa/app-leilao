@@ -2,9 +2,9 @@ import streamlit as st
 import pdfplumber
 import re
 import os
+import requests
+import base64
 from io import BytesIO
-import google.generativeai as genai
-from PIL import Image
 
 st.set_page_config(
     page_title="PAINEL DO LEILOEIRO PRO",
@@ -269,16 +269,17 @@ def extrair_dados_oe(texto_oe_tuple):
                     dados_por_lote[lt_num] = dados
     return sequencia, dados_por_lote
 
-# ==================== ANÁLISE DE LINHAGEM VIA GOOGLE GEMINI ====================
+# ==================== ANÁLISE DIRETA VIA REST API (COMPATÍVEL COM CHAVES AQ...) ====================
 @st.cache_data(show_spinner=False)
 def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, api_key):
     if not api_key:
         return "⚠️ Chave GEMINI_API_KEY não encontrada nos Secrets do Streamlit."
 
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        image = Image.open(BytesIO(img_bytes))
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key.strip()}"
+        headers = {"Content-Type": "application/json"}
+        
+        base64_image = base64.b64encode(img_bytes).decode('utf-8')
 
         prompt = f"""
         Você é um especialista zootecnista e leiloeiro de elite.
@@ -294,8 +295,29 @@ def analisar_lote_com_gemini(img_bytes, num_lote, dados_lote, api_key):
         3. 💡 **Argumento de Pista**: 1 frase marcante de impacto para o microfone.
         """
 
-        response = model.generate_content([prompt, image])
-        return response.text
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": "image/jpeg",
+                            "data": base64_image
+                        }
+                    }
+                ]
+            }]
+        }
+
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        res_json = response.json()
+
+        if response.status_code == 200:
+            return res_json['candidates'][0]['content']['parts'][0]['text']
+        else:
+            err_msg = res_json.get('error', {}).get('message', response.text)
+            return f"Erro na requisição ({response.status_code}): {err_msg}"
+
     except Exception as e:
         return f"Erro ao processar análise da IA: {str(e)}"
 
